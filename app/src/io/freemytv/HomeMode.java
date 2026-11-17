@@ -39,6 +39,13 @@ final class HomeMode {
     /** Our screensaver: on Android 11 the copy that runs in the main process (ScreensaverAlone, #10). */
     static final String DREAM = PKG + "/" + PKG + (Build.VERSION.SDK_INT == 30 ? ".ScreensaverAlone" : ".Screensaver");
     static final String FREE = "free", ORIGINAL = "original";
+    /**
+     * Fire TV: Amazon's launcher can't be replaced (Fire OS 8 ignores the HOME setting and protects it). There, Free My
+     * TV mode leaves the home screen and the screensaver alone, turns off the listed apps and turns on FireHomeService,
+     * which opens our home screen whenever Amazon's comes to the front. Original takes the service out.
+     */
+    static final boolean FIRE = "Amazon".equalsIgnoreCase(Build.MANUFACTURER);
+    private static final String FIRE_SERVICE = PKG + "/" + PKG + ".FireHomeService";
 
     /** Classic Android TV's home screen; its recommendations service crashes on the screensaver while it's off (#11). */
     static final String TV_LAUNCHER = "com.google.android.tvlauncher";
@@ -73,6 +80,19 @@ final class HomeMode {
         // Xiaomi
         "com.miui.tv.analytics", "com.xiaomi.statistic",                              // telemetry
         "com.mitv.tvhome.mitvplus", "com.xm.webcontent",                              // Mi TV+ promo channels, promo web content
+        // Amazon Fire TV (Fire OS 8)
+        "com.amazon.ftvads.deeplinking",                                              // ads that open from the home screen
+        "com.amazon.kso.blackbird",                                                   // Special Offers (ads)
+        "com.amazon.hybridadidservice",                                               // advertising ID
+        "com.amazon.shoptv.client", "com.amazon.shoptv.firetv.client",                // shopping on the TV
+        "com.amazon.sneakpeek",                                                       // trailers that play by themselves
+        "com.amazon.tv.acr",                                                          // ACR: recognizes what's on screen
+        "com.amazon.minitv.android.app",                                              // miniTV (India)
+        "com.amazon.tv.easyupgrade",                                                  // "upgrade your device" offers
+        "com.amazon.tv.earlyaccess", "com.amazon.tv.releasenotes",                    // preview programme, release notes
+        "com.amazon.tmm.tutorial", "com.amazon.storm.lightning.tutorial",             // tutorials
+        "com.amazon.device.telemetry.emitter", "com.amazon.wirelessmetrics.service",  // telemetry
+        "com.amazon.perfcollection", "com.amazon.device.crashmanager",                // performance and crash reports
     };
 
     /** The voice assistant, only with disable_assistant=true in config.properties (the mic button stops working). */
@@ -113,7 +133,15 @@ final class HomeMode {
         "mitv.service", "com.mi.bluetooth", "com.mitv.livetv.ci_mediatek", "com.xiaomi.tvqs.overseas",
         "com.mitv.tvlock", "com.xiaomi.mitv.updateservice", "com.xiaomi.android.tvsetup.partnercustomizer",
         "com.mitv.overseaservice", "com.xiaomi.mitv.tvmanager", "com.xiaomi.wfdsinkhelperservice",
-        "com.mitv.milinkservice", "com.xiaomi.mitv.smartshare", "android.autoinstalls.config.xiaomi.amelie"));
+        "com.mitv.milinkservice", "com.xiaomi.mitv.smartshare", "android.autoinstalls.config.xiaomi.amelie",
+        // Amazon Fire TV: home screen, settings, store, keyboard, remote and voice, profiles, account, updates, setup,
+        // HDMI-CEC, screensaver, web engine
+        "com.amazon.tv.launcher", "com.amazon.tv.settings.v2", "com.amazon.tv.settings.core", "com.amazon.venezia",
+        "com.amazon.tv.ime", "com.amazon.fireinputdevices", "com.amazon.device.bluetoothpa", "com.amazon.autopairservice",
+        "com.amazon.tv.keypolicymanager", "com.amazon.vizzini", "com.amazon.alexamediaplayer.runtime.ftv",
+        "com.amazon.ftv.profilepicker", "com.amazon.identity.auth.device.authorization", "com.amazon.device.software.ota",
+        "com.amazon.tv.oobe", "com.amazon.tv.devicecontrol", "com.amazon.tv.arc", "com.amazon.tv.quicksettings.ui",
+        "com.amazon.ftv.screensaver", "com.amazon.webview.chromium", "com.amazon.tv.parentalcontrols", "amazon.fireos"));
 
     /** One switch at a time (jobs can overlap: a boot check and a button press). */
     private static final Object RUN = new Object();
@@ -163,13 +191,21 @@ final class HomeMode {
     private static final String REMOTE_SERVICE = PKG + "/" + PKG + ".RemoteKeyService";
     private static final Pattern SERVICE = Pattern.compile("[\\w.]+/[\\w.$]+");
 
-    /** Adds ours to the enabled accessibility services (keeping the others, like TalkBack), or takes it out. */
     private static void remoteService(Context c, Adb adb, boolean on) throws IOException {
+        service(c, adb, REMOTE_SERVICE, on);
+    }
+
+    private static void fireService(Context c, Adb adb, boolean on) throws IOException {
+        service(c, adb, FIRE_SERVICE, on);
+    }
+
+    /** Adds one of ours to the enabled accessibility services (keeping the others, like TalkBack), or takes it out. */
+    private static void service(Context c, Adb adb, String component, boolean on) throws IOException {
         String current = adb.shell("settings get secure enabled_accessibility_services").trim();
         if (current.equals("null")) current = "";
         List<String> others = new ArrayList<>();
         for (String one : current.split(":")) {
-            if (one.isEmpty() || one.equals(REMOTE_SERVICE)) continue;
+            if (one.isEmpty() || one.equals(component)) continue;
             // Only plain component names go back into the shell command; anything else is left alone.
             if (!SERVICE.matcher(one).matches()) {
                 AppLog.w("accessibility services left as they are: unexpected entry");
@@ -177,20 +213,24 @@ final class HomeMode {
             }
             others.add(one);
         }
-        if (on == current.contains(REMOTE_SERVICE)) return;
+        if (on == Arrays.asList(current.split(":")).contains(component)) return;
         List<String> list = new ArrayList<>(others);
         if (on) {
             JSONObject s = state(c);
-            try { s.put("accessibilityWasOff", !"1".equals(adb.shell("settings get secure accessibility_enabled").trim())); }
-            catch (JSONException ignored) {}
-            save(c, s);
-            list.add(REMOTE_SERVICE);
+            // Only when none of ours was on yet: the first one records how it was.
+            boolean ours = list.contains(REMOTE_SERVICE) || list.contains(FIRE_SERVICE);
+            if (!ours) {
+                try { s.put("accessibilityWasOff", !"1".equals(adb.shell("settings get secure accessibility_enabled").trim())); }
+                catch (JSONException ignored) {}
+                save(c, s);
+            }
+            list.add(component);
         }
         adb.shell(list.isEmpty() ? "settings delete secure enabled_accessibility_services"
                 : "settings put secure enabled_accessibility_services '" + String.join(":", list) + "'");
         if (on) adb.shell("settings put secure accessibility_enabled 1");
         else if (list.isEmpty() && state(c).optBoolean("accessibilityWasOff")) adb.shell("settings put secure accessibility_enabled 0");
-        AppLog.w("remote buttons service " + (on ? "on" : "off"));
+        AppLog.w(component + (on ? " on" : " off"));
     }
 
     // MARK: - Switches (main process, from ModeJob)
@@ -222,7 +262,7 @@ final class HomeMode {
             // back. The TV's first setup usually saved the network: then stop here, before anything changes.
             Set<String> owners = wifiOwners(adb);
             boolean setupHome = setupIsHome(adb);
-            if ((setupHome && owners.contains(GOOGLE_SETUP)) || owners.contains(packageOf(home))) {
+            if (!FIRE && ((setupHome && owners.contains(GOOGLE_SETUP)) || owners.contains(packageOf(home)))) {
                 throw new IOException(Ui.tr("a configuração inicial da TV salvou o Wi-Fi, e desligá-la apagaria essas redes. "
                         + "Em Configurações → Rede e Internet, esqueça a rede e conecte de novo (as fora de alcance não aparecem "
                         + "lá: o Claude Code apaga pelo computador) e tente outra vez.",
@@ -233,20 +273,22 @@ final class HomeMode {
                         + "En Ajustes → Red e Internet, olvida la red y vuelve a conectarte (las fuera de alcance no aparecen "
                         + "ahí: Claude Code las borra desde la computadora) y vuelve a intentarlo."));
             }
-            if (metrics(latest, ORIGINAL) == null && !home.isEmpty()) {
+            if (!FIRE && metrics(latest, ORIGINAL) == null && !home.isEmpty()) {
                 busy(c, Ui.tr("Medindo o Início original…", "Measuring the original home screen…"));
                 measureHomeTime(c, adb, ORIGINAL);
                 measureMemory(c, adb, ORIGINAL);
             }
             busy(c, Ui.tr("Trocando o Início e a tela de descanso…", "Switching the home screen and screensaver…"));
             Watchdog.clear(c);
-            check(adb.shell("cmd package set-home-activity " + HOME_ACTIVITY), "Success",
-                    Ui.tr("o Android não aceitou o novo Início", "Android didn't accept the new home screen"));
-            adb.shell("settings put secure screensaver_components " + DREAM);
+            if (!FIRE) {
+                check(adb.shell("cmd package set-home-activity " + HOME_ACTIVITY), "Success",
+                        Ui.tr("o Android não aceitou o novo Início", "Android didn't accept the new home screen"));
+                adb.shell("settings put secure screensaver_components " + DREAM);
+            }
             JSONObject started = state(c);
             started.put("mode", FREE).put("homeReverted", false).put("setupHome", setupHome);
             save(c, started);
-            List<String> targets = targets(home, dream, setupHome);
+            List<String> targets = FIRE ? targets() : targets(home, dream, setupHome);
             Set<String> disabled = new HashSet<>(stringList(state(c), "disabled"));
             Set<String> present = packages(adb, "");
             int done = 0;
@@ -275,6 +317,14 @@ final class HomeMode {
                     AppLog.w("remote buttons service: " + e.getMessage());
                 }
             }
+            if (FIRE) {
+                fireService(c, adb, true);
+                notice(c, Ui.tr("Free My TV ligado: o botão Início abre o Free My TV, " + disabled.size() + " apps desligados.",
+                        "Free My TV is on: the Home button opens Free My TV, " + disabled.size() + " apps turned off."));
+                done(c, null);
+                adb.shell("am start -n " + HOME_ACTIVITY);
+                return;
+            }
             notice(c, Ui.tr("Free My TV ligado: Início e tela de descanso novos, " + disabled.size() + " apps desligados.",
                     "Free My TV is on: new home screen and screensaver, " + disabled.size() + " apps turned off."));
             busy(c, Ui.tr("Medindo o Free My TV…", "Measuring Free My TV…"));
@@ -293,7 +343,8 @@ final class HomeMode {
             busy(c, Ui.tr("Religando os apps…", "Turning the apps back on…"));
             String home = originalHome(s);
             Set<String> toEnable = new HashSet<>(stringList(s, "disabled"));
-            for (String pkg : targets(home, originalDream(s), true)) {
+            // Fire TV: the home screen and the screensaver were never touched.
+            for (String pkg : FIRE ? new ArrayList<String>() : targets(home, originalDream(s), true)) {
                 if (!Arrays.asList(DEBLOAT).contains(pkg) && !Arrays.asList(ASSISTANT).contains(pkg)) toEnable.add(pkg);
             }
             Set<String> present = packages(adb, "");
@@ -308,8 +359,13 @@ final class HomeMode {
                 if (!out.contains("new state: enabled")) failed.add(pkg);
             }
             busy(c, Ui.tr("Devolvendo o Início original…", "Restoring the original home screen…"));
-            boolean homeOk = restoreHome(adb, home);
-            restoreScreensaver(adb, s);
+            boolean homeOk = true;
+            if (FIRE) {
+                fireService(c, adb, false);
+            } else {
+                homeOk = restoreHome(adb, home);
+                restoreScreensaver(adb, s);
+            }
             try {
                 remoteService(c, adb, false);
             } catch (IOException e) {
@@ -328,8 +384,10 @@ final class HomeMode {
                 notice(c, Ui.tr("Modo original, mas não consegui religar: ", "Original mode, but I couldn't turn back on: ")
                         + String.join(", ", problems) + ".");
             }
-            busy(c, Ui.tr("Medindo o Início original…", "Measuring the original home screen…"));
-            measureHomeTime(c, adb, ORIGINAL);
+            if (!FIRE) {
+                busy(c, Ui.tr("Medindo o Início original…", "Measuring the original home screen…"));
+                measureHomeTime(c, adb, ORIGINAL);
+            }
             done(c, null);
             adb.shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME");
             ModeJob.schedule(c, ModeJob.MEMORY, ORIGINAL, 120_000);
@@ -354,6 +412,17 @@ final class HomeMode {
         synchronized (RUN) {
             JSONObject s = state(app);
             try (Adb adb = Adb.connect(app, 10_000, null)) {
+                if (FIRE) {
+                    // Amazon's home screen never left: just stop opening ours on top of it.
+                    if (!FREE.equals(s.optString("mode")) || s.optBoolean("homeReverted")) return;
+                    fireService(app, adb, false);
+                    s.put("homeReverted", true);
+                    save(app, s);
+                    notice(app, Ui.tr("O Início do Free My TV caiu 3 vezes seguidas; voltei para o Início original.",
+                            "Free My TV's home screen crashed 3 times in a row; I switched back to the original one."));
+                    adb.shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME");
+                    return;
+                }
                 boolean ours = homeHolder(adb).contains(PKG);
                 if (!ours && (!FREE.equals(s.optString("mode")) || s.optBoolean("homeReverted"))) return;
                 String home = originalHome(s);
@@ -406,7 +475,7 @@ final class HomeMode {
                 String home = originalHome(s);
                 Set<String> wanted = new HashSet<>(stringList(s, "disabled"));
                 String dream = originalDream(s);
-                for (String pkg : targets(home, dream, s.optBoolean("setupHome", true))) {
+                for (String pkg : FIRE ? targets() : targets(home, dream, s.optBoolean("setupHome", true))) {
                     if (!reverted || !(pkg.equals(packageOf(home)) || pkg.equals(GOOGLE_SETUP) || pkg.equals(packageOf(dream)))) {
                         wanted.add(pkg);
                     }
@@ -423,12 +492,18 @@ final class HomeMode {
                         fixed.add(pkg);
                     }
                 }
-                if (!reverted && !homeHolder(adb).contains(PKG)) {
+                if (FIRE) {
+                    // Android turns accessibility services off when this app is updated: back on.
+                    if (!reverted && !adb.shell("settings get secure enabled_accessibility_services").contains(FIRE_SERVICE)) {
+                        fireService(app, adb, true);
+                        fixed.add(Ui.tr("o botão Início", "the Home button"));
+                    }
+                } else if (!reverted && !homeHolder(adb).contains(PKG)) {
                     adb.shell("cmd package set-home-activity " + HOME_ACTIVITY);
                     fixed.add(Ui.tr("o Início", "the home screen"));
                 }
                 // Whole component names: ".ScreensaverAlone" (Android 11) contains ".Screensaver" (12 and newer).
-                if (!reverted && !Arrays.asList(adb.shell("settings get secure screensaver_components").trim().split(",")).contains(DREAM)) {
+                if (!FIRE && !reverted && !Arrays.asList(adb.shell("settings get secure screensaver_components").trim().split(",")).contains(DREAM)) {
                     adb.shell("settings put secure screensaver_components " + DREAM);
                     fixed.add(Ui.tr("a tela de descanso", "the screensaver"));
                 }
@@ -461,6 +536,13 @@ final class HomeMode {
         String dreamPkg = packageOf(dream);
         if (dreamPkg != null && !dreamPkg.equals(PKG) && !dreamPkg.equals(homePkg)) out.add(dreamPkg);
         out.addAll(Arrays.asList(DEBLOAT));
+        if (Config.DISABLE_ASSISTANT) out.addAll(Arrays.asList(ASSISTANT));
+        return out;
+    }
+
+    /** Fire TV: only the lists (Amazon's home screen and screensaver stay). */
+    private static List<String> targets() {
+        List<String> out = new ArrayList<>(Arrays.asList(DEBLOAT));
         if (Config.DISABLE_ASSISTANT) out.addAll(Arrays.asList(ASSISTANT));
         return out;
     }

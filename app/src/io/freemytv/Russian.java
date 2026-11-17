@@ -141,6 +141,7 @@ final class Russian {
             case "Couldn't go back to the original: ": return "Не удалось восстановить заводской режим: ";
             case "Free My TV's home screen crashed 3 times in a row; I switched back to the original one.": return "Главный экран Free My TV аварийно завершился 3 раза подряд; восстановлен заводской главный экран.";
             case "the home screen": return "главный экран";
+            case "the Home button": return "кнопку «Домой»";
             case "the screensaver": return "заставка";
             case "Couldn't check Free My TV: ": return "Не удалось проверить Free My TV: ";
             case "The TV update turned back on ": return "После обновления телевизора снова включены: ";
@@ -243,6 +244,9 @@ final class Russian {
                 if (english.startsWith(shelfPrefix) && english.endsWith(shelfSuffix)) {
                     String n = english.substring(shelfPrefix.length(), english.length() - shelfSuffix.length());
                     return "OK — добавить или убрать (до " + n + "). ← → — изменить порядок.";
+                }
+                if (english.startsWith("Free My TV is on: the Home button opens Free My TV, ")) {
+                    return "Free My TV включён: кнопка «Домой» открывает Free My TV; отключено приложений: " + english.substring(52).replace(" apps turned off.", ".");
                 }
                 String prefix = "Free My TV is on: new home screen and screensaver, ";
                 if (english.startsWith(prefix) && english.endsWith(" apps turned off.")) {

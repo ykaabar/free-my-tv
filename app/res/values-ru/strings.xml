@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="remote_key_service">Кнопки приложений на пульте (Netflix, YouTube, Prime Video, TCL Channel) открывают приложения, выбранные в Free My TV, поверх любого приложения. Служба считывает только эти кнопки.</string>
+    <string name="fire_home_service">На Fire TV открывает главный экран Free My TV при нажатии кнопки «Домой». Служба видит только момент, когда на экран выходит главный экран Amazon.</string>
 </resources>

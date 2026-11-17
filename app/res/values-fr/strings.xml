@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="remote_key_service">Permet aux boutons d\'applis de la télécommande (Netflix, YouTube, Prime Video, TCL Channel) d\'ouvrir les applis choisies dans Free My TV, depuis n\'importe quelle appli. Le service ne lit que ces boutons.</string>
+    <string name="fire_home_service">Sur Fire TV, ouvre l\'accueil Free My TV quand vous appuyez sur Accueil. Le service voit seulement quand l\'accueil d\'Amazon passe au premier plan.</string>
 </resources>

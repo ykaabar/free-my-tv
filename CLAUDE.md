@@ -127,6 +127,12 @@ Then, in the code:
 - Build, install, have them switch on the TV, read `adb logcat -s FreeMyTV`, then have them switch back to
   *Original* once and confirm everything returned.
 
+**Fire TV (Fire OS 8)**: Amazon's launcher can't be replaced, so `HomeMode.FIRE` leaves the home screen and the
+screensaver alone: the switch turns off the Amazon entries of `DEBLOAT` (ads, shopping, ACR, telemetry, tutorials) and
+turns on `FireHomeService`, an accessibility service that opens our home screen when Amazon's launcher comes to the
+front (a short flash of Amazon's home on each Home press). `adb logcat -s FreeMyTV` lists the launcher screens it saw
+(`fire launcher: …`). *Original* takes the service out and turns the apps back on.
+
 LG and Samsung: the web app above. Other TVs that don't run Google TV or Android TV: the way is a Google TV streamer on
 HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set Free My TV up on the streamer.
 

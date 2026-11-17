@@ -134,6 +134,7 @@ final class French {
             case "Couldn't go back to the original: ": return "Impossible de revenir à l'original : ";
             case "Free My TV's home screen crashed 3 times in a row; I switched back to the original one.": return "L'écran d'accueil de Free My TV a planté 3 fois de suite ; l'écran d'origine a été rétabli.";
             case "the home screen": return "l'écran d'accueil";
+            case "the Home button": return "le bouton Accueil";
             case "the screensaver": return "l'économiseur d'écran";
             case "Couldn't check Free My TV: ": return "Impossible de vérifier Free My TV : ";
             case "The TV update turned back on ": return "La mise à jour de la TV a réactivé : ";
@@ -236,6 +237,9 @@ final class French {
                 if (english.startsWith(shelfPrefix) && english.endsWith(shelfSuffix)) {
                     String n = english.substring(shelfPrefix.length(), english.length() - shelfSuffix.length());
                     return "OK ajoute ou retire (jusqu'à " + n + "). ← → changent l'ordre.";
+                }
+                if (english.startsWith("Free My TV is on: the Home button opens Free My TV, ")) {
+                    return "Free My TV est actif : le bouton Accueil ouvre Free My TV, " + english.substring(52).replace(" apps turned off.", " applis désactivées.");
                 }
                 String prefix = "Free My TV is on: new home screen and screensaver, ";
                 if (english.startsWith(prefix) && english.endsWith(" apps turned off.")) {

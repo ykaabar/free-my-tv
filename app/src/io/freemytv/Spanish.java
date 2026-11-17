@@ -72,6 +72,7 @@ final class Spanish {
             case "Couldn't go back to the original: ": return "No se pudo volver al modo original: ";
             case "Free My TV's home screen crashed 3 times in a row; I switched back to the original one.": return "La pantalla de inicio de Free My TV falló 3 veces seguidas; volví a la original.";
             case "the home screen": return "la pantalla de inicio";
+            case "the Home button": return "el botón Inicio";
             case "the screensaver": return "el protector de pantalla";
             case "Couldn't check Free My TV: ": return "No se pudo comprobar Free My TV: ";
             case "The TV update turned back on ": return "La actualización del TV reactivó ";
@@ -123,6 +124,9 @@ final class Spanish {
             case "YouTube, Prime Video and Google Play: the TV itself controls those buttons.": return "YouTube, Prime Video y Google Play: el propio TV controla esos botones.";
             case "These are the TCL remote's buttons: on this TV, the buttons work as they always did.": return "Estos son los botones del control de TCL: en este TV, los botones funcionan como siempre.";
             default:
+                if (english.startsWith("Free My TV is on: the Home button opens Free My TV, ")) {
+                    return "Free My TV está activo: el botón Inicio abre Free My TV, " + english.substring(52).replace(" apps turned off.", " apps desactivadas.");
+                }
                 if (english.startsWith("Free My TV is on: new home screen and screensaver, ")) {
                     return "Free My TV está activo: nueva pantalla de inicio y protector, "
                             + english.substring("Free My TV is on: new home screen and screensaver, ".length()).replace(" apps turned off.", " apps desactivadas.");

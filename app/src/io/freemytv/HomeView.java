@@ -509,7 +509,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void makeLightButtons() {
         lightButtons.clear();
         lightButtons.add(HomeApps.action(HomeApps.SLEEP, "sleep", Ui.tr("Timer", "Sleep timer", "Temporizador"), "bedtime"));
-        if (!Prefs.kidMode()) {
+        if (!Prefs.kidMode() && !HomeMode.FIRE) {   // a Fire TV stick has no tuner and no HDMI inputs
             lightButtons.add(HomeApps.action(HomeApps.LIVE_TV, "live", Ui.tr("TV aberta", "Live TV"), "live_tv"));
             lightButtons.add(HomeApps.action(HomeApps.INPUTS, "inputs", Ui.tr("Entradas HDMI", "HDMI Inputs"), "hdmi"));
         }
