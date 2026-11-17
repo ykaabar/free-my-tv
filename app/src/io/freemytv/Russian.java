@@ -156,6 +156,9 @@ final class Russian {
             case "Light": return "Светлая";
             case "Dark": return "Тёмная";
             case "Ambience": return "Атмосфера";
+            case "Ambience · weather": return "Атмосфера · погода";
+            case "Ambience · mountains": return "Атмосфера · горы";
+            case "Ambience · my photos": return "Атмосфера · мои фото";
             case "Tonight": return "Сегодня вечером";
             case "Weather widget": return "Виджет погоды";
             // What TalkBack reads on the drawer's weather card (#47)

@@ -176,7 +176,12 @@ final class Nature {
     }
 
     private List<Photo> fetch(String query) throws Exception {
-        String body = get(API + "/photos/random?count=" + PER_QUERY + "&orientation=landscape&content_filter=high&query=" + query);
+        return fetch(query, PER_QUERY);
+    }
+
+    private List<Photo> fetch(String query, int count) throws Exception {
+        String body = get(API + "/photos/random?count=" + count + "&orientation=landscape&content_filter=high&query="
+                + java.net.URLEncoder.encode(query, "UTF-8"));
         JSONArray a = new JSONArray(body);
         List<Photo> out = new ArrayList<>();
         for (int i = 0; i < a.length(); i++) {
@@ -207,7 +212,10 @@ final class Nature {
     }
 
     private void download(Photo p) throws IOException {
-        File f = imageFile(p);
+        download(p, imageFile(p));
+    }
+
+    private void download(Photo p, File f) throws IOException {
         if (f.exists()) return;
         //noinspection ResultOfMethodCallIgnored
         f.getParentFile().mkdirs();
@@ -323,5 +331,117 @@ final class Nature {
         k.meta = p.author.isEmpty() ? "Unsplash" : Ui.tr("Foto: ", "Photo: ", "Foto: ") + p.author;
         k.detailed = true;
         return k;
+    }
+
+    // MARK: - The Ambiance home screen's background: a few photos per mood (the weather and the time of day, or mountains)
+
+    private static final int PER_MOOD = 5;
+    private static final long MOOD_EVERY = 3 * 24 * 3600_000L;
+    private final java.util.Map<String, List<Photo>> moods = new java.util.HashMap<>();
+    private final java.util.Map<String, Long> moodFailed = new java.util.HashMap<>();
+    private final Set<String> moodFetching = new HashSet<>();
+    private SharedPreferences moodStore;
+
+    /**
+     * The photos of this mood ("snowy mountains") already on disk, as picks with their credit. Fetches some (on the
+     * same thread as the rest, a few at a time) when there are none yet or they're a few days old; listeners hear when
+     * they're in. Main thread only.
+     */
+    List<Recs.Pick> mood(String query) {
+        List<Photo> list = moodList(query);
+        List<Recs.Pick> out = new ArrayList<>();
+        for (Photo p : list) if (moodFile(p).exists()) out.add(pick(p));
+        long now = System.currentTimeMillis(), at = moodStore.getLong("t:" + query, 0);
+        Long failed = moodFailed.get(query);
+        boolean stale = out.isEmpty() || now - at > MOOD_EVERY || now < at;
+        if (stale && hasKey() && !moodFetching.contains(query) && (failed == null || now - failed > RETRY_AFTER)) fetchMood(query);
+        return out;
+    }
+
+    File moodImage(Recs.Pick pick) {
+        for (List<Photo> list : moods.values()) {
+            for (Photo p : list) if (p.id.equals(pick.backdrop)) return moodFile(p).exists() ? moodFile(p) : null;
+        }
+        return null;
+    }
+
+    private List<Photo> moodList(String query) {
+        if (moodStore == null) moodStore = context.getSharedPreferences("moods", Context.MODE_PRIVATE);
+        List<Photo> list = moods.get(query);
+        if (list == null) {
+            try {
+                list = parse(new JSONArray(moodStore.getString("m:" + query, "[]")));
+            } catch (Exception e) {
+                list = new ArrayList<>();
+            }
+            moods.put(query, list);
+        }
+        return list;
+    }
+
+    private void fetchMood(String query) {
+        moodFetching.add(query);
+        final List<Photo> old = new ArrayList<>(moodList(query));
+        io.execute(() -> {
+            List<Photo> fresh = new ArrayList<>();
+            String error = null;
+            try {
+                for (Photo p : fetch(query, PER_MOOD)) {
+                    try {
+                        download(p, moodFile(p));
+                        report(p);
+                        p.reported = true;
+                        fresh.add(p);
+                    } catch (IOException e) {
+                        error = e.getMessage();
+                    }
+                }
+            } catch (Exception e) {
+                error = e.getMessage() == null ? e.toString() : e.getMessage();
+            }
+            final String err = error;
+            main.post(() -> {
+                moodFetching.remove(query);
+                if (fresh.isEmpty()) {
+                    moodFailed.put(query, System.currentTimeMillis());
+                    AppLog.w("unsplash mood " + query + ": " + err);
+                } else {
+                    // The new ones first; a few of the old ones stay (they're already on disk).
+                    List<Photo> keep = new ArrayList<>(fresh);
+                    for (Photo p : old) if (keep.size() < PER_MOOD * 2) keep.add(p);
+                    moods.put(query, keep);
+                    JSONArray a = new JSONArray();
+                    try {
+                        for (Photo p : keep) {
+                            a.put(new JSONObject().put("id", p.id).put("place", p.place).put("author", p.author)
+                                    .put("image", p.image).put("report", p.report).put("reported", true));
+                        }
+                    } catch (org.json.JSONException ignored) {
+                    }
+                    moodStore.edit().putString("m:" + query, a.toString()).putLong("t:" + query, System.currentTimeMillis()).apply();
+                    pruneMoods();
+                }
+                for (Recs.Listener l : new ArrayList<>(listeners)) l.onRecs();
+            });
+        });
+    }
+
+    private File moodFile(Photo p) {
+        return new File(new File(context.getCacheDir(), "moods"), p.id.replaceAll("[^A-Za-z0-9_-]", "") + ".jpg");
+    }
+
+    /** Deletes the files no mood lists any more (main thread: the lists are read here). */
+    private void pruneMoods() {
+        if (!moodFetching.isEmpty()) return;    // another mood's photos may be on disk but not listed yet
+        Set<String> names = new HashSet<>();
+        for (String key : moodStore.getAll().keySet()) {
+            if (key.startsWith("m:")) for (Photo p : moodList(key.substring(2))) names.add(moodFile(p).getName());
+        }
+        File[] files = new File(context.getCacheDir(), "moods").listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            //noinspection ResultOfMethodCallIgnored
+            if (!names.contains(f.getName()) && !f.getName().endsWith(".part")) f.delete();
+        }
     }
 }

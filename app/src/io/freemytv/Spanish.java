@@ -89,6 +89,9 @@ final class Spanish {
             case "Light": return "Claro";
             case "Dark": return "Oscuro";
             case "Ambience": return "Ambiente";
+            case "Ambience · weather": return "Ambiente · clima";
+            case "Ambience · mountains": return "Ambiente · montañas";
+            case "Ambience · my photos": return "Ambiente · mis fotos";
             case "Tonight": return "Esta noche";
             case "Weather widget": return "Widget del clima";
             // What TalkBack reads on the drawer's weather card (#47)

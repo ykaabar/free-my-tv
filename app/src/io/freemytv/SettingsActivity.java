@@ -633,7 +633,7 @@ public class SettingsActivity extends Activity {
 
         // MARK: - Home Settings and Remote Buttons
 
-        private static final String[] LANGUAGES = {"auto", "pt", "en", "es", "de", "ru", "fr"}, UNITS = {"auto", "C", "F"}, THEMES = {"auto", "light", "dark", "ambiance"};
+        private static final String[] LANGUAGES = {"auto", "pt", "en", "es", "de", "ru", "fr"}, UNITS = {"auto", "C", "F"}, THEMES = {"auto", "light", "dark", "ambiance", "ambiance-landscape", "ambiance-album"};
         private static final String[] SCREENSAVERS = {"nature", "films", "both", "album"};
         /** Home Settings: language, temperature, theme, screensaver, weather, city, quote of the day, age counter, photos,
          * quotes, then one row per coin. */
@@ -681,7 +681,10 @@ public class SettingsActivity extends Activity {
             v[1] = unit.equals("C") ? "°C" : unit.equals("F") ? "°F" : Ui.tr("Automática", "Automatic");
             String theme = Prefs.theme();
             v[2] = theme.equals("light") ? Ui.tr("Claro", "Light") : theme.equals("dark") ? Ui.tr("Escuro", "Dark")
-                    : theme.equals("ambiance") ? Ui.tr("Ambiente", "Ambience", "Ambiente") : Ui.tr("Automático", "Automatic");
+                    : theme.equals("ambiance") ? Ui.tr("Ambiente · clima", "Ambience · weather", "Ambiente · clima")
+                    : theme.equals("ambiance-landscape") ? Ui.tr("Ambiente · montanhas", "Ambience · mountains", "Ambiente · montañas")
+                    : theme.equals("ambiance-album") ? Ui.tr("Ambiente · minhas fotos", "Ambience · my photos", "Ambiente · mis fotos")
+                    : Ui.tr("Automático", "Automatic");
             String saver = Prefs.screensaver();
             v[SAVER_ROW] = saver.equals("album") ? Ui.tr("Minhas fotos", "My photos", "Mis fotos")
                     : saver.equals("nature") ? Ui.tr("Natureza", "Nature", "Naturaleza")
@@ -766,8 +769,10 @@ public class SettingsActivity extends Activity {
                     break;
                 }
                 case 2: {
+                    // "Ambience · my photos" only when there's an iCloud album.
+                    int n = Album.configured() ? THEMES.length : THEMES.length - 1;
                     int at = java.util.Arrays.asList(THEMES).indexOf(Prefs.theme());
-                    Prefs.setTheme(THEMES[(at + dir + THEMES.length) % THEMES.length]);
+                    Prefs.setTheme(THEMES[(at + dir + n) % n]);
                     break;
                 }
                 case SAVER_ROW: {

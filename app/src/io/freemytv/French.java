@@ -149,6 +149,9 @@ final class French {
             case "Light": return "Clair";
             case "Dark": return "Sombre";
             case "Ambience": return "Ambiance";
+            case "Ambience · weather": return "Ambiance · météo";
+            case "Ambience · mountains": return "Ambiance · montagnes";
+            case "Ambience · my photos": return "Ambiance · mes photos";
             case "Tonight": return "Ce soir";
             case "Weather widget": return "Widget météo";
             // What TalkBack reads on the drawer's weather card (#47)

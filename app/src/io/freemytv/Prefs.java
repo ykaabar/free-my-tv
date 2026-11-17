@@ -76,11 +76,18 @@ final class Prefs {
     /** "auto" (dark from sunset to sunrise), "light" or "dark". */
     static String theme() {
         String v = sp().getString("theme", "auto");
-        return v.equals("light") || v.equals("dark") || v.equals("ambiance") ? v : "auto";
+        if (v.equals("ambiance-album") && !Album.configured()) return "ambiance";
+        return v.equals("light") || v.equals("dark") || v.startsWith("ambiance") ? v : "auto";
     }
 
-    /** The Ambiance home screen: your photos (or Unsplash's) full screen, a big clock, tonight's picks, large apps. */
-    static boolean ambiance() { return theme().equals("ambiance"); }
+    /** The Ambiance home screen: a photo full screen, a big glass clock, the apps in a glass gallery. */
+    static boolean ambiance() { return theme().startsWith("ambiance"); }
+
+    /** Its photo: "weather" (a landscape that matches the weather and the time), "landscape" (mountains) or "album". */
+    static String ambianceSource() {
+        String t = theme();
+        return t.equals("ambiance-landscape") ? "landscape" : t.equals("ambiance-album") ? "album" : "weather";
+    }
 
     static void setTheme(String v) { put("theme", v); }
 
