@@ -155,6 +155,8 @@ final class German {
             case "Automatic": return "Automatisch";
             case "Light": return "Hell";
             case "Dark": return "Dunkel";
+            case "Ambience": return "Ambiente";
+            case "Tonight": return "Heute Abend";
             case "Weather widget": return "Wetter-Widget";
             // What TalkBack reads on the drawer's weather card (#47)
             case ". High ": return ". Höchstwert ";

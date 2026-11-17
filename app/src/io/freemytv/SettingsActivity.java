@@ -633,7 +633,7 @@ public class SettingsActivity extends Activity {
 
         // MARK: - Home Settings and Remote Buttons
 
-        private static final String[] LANGUAGES = {"auto", "pt", "en", "es", "de", "ru", "fr"}, UNITS = {"auto", "C", "F"}, THEMES = {"auto", "light", "dark"};
+        private static final String[] LANGUAGES = {"auto", "pt", "en", "es", "de", "ru", "fr"}, UNITS = {"auto", "C", "F"}, THEMES = {"auto", "light", "dark", "ambiance"};
         private static final String[] SCREENSAVERS = {"nature", "films", "both", "album"};
         /** Home Settings: language, temperature, theme, screensaver, weather, city, quote of the day, age counter, photos,
          * quotes, then one row per coin. */
@@ -680,7 +680,8 @@ public class SettingsActivity extends Activity {
             String unit = Prefs.temperature();
             v[1] = unit.equals("C") ? "°C" : unit.equals("F") ? "°F" : Ui.tr("Automática", "Automatic");
             String theme = Prefs.theme();
-            v[2] = theme.equals("light") ? Ui.tr("Claro", "Light") : theme.equals("dark") ? Ui.tr("Escuro", "Dark") : Ui.tr("Automático", "Automatic");
+            v[2] = theme.equals("light") ? Ui.tr("Claro", "Light") : theme.equals("dark") ? Ui.tr("Escuro", "Dark")
+                    : theme.equals("ambiance") ? Ui.tr("Ambiente", "Ambience", "Ambiente") : Ui.tr("Automático", "Automatic");
             String saver = Prefs.screensaver();
             v[SAVER_ROW] = saver.equals("album") ? Ui.tr("Minhas fotos", "My photos", "Mis fotos")
                     : saver.equals("nature") ? Ui.tr("Natureza", "Nature", "Naturaleza")

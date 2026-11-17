@@ -147,6 +147,8 @@ final class French {
             case "Automatic": return "Automatique";
             case "Light": return "Clair";
             case "Dark": return "Sombre";
+            case "Ambience": return "Ambiance";
+            case "Tonight": return "Ce soir";
             case "Weather widget": return "Widget météo";
             // What TalkBack reads on the drawer's weather card (#47)
             case ". High ": return ". Maximum ";

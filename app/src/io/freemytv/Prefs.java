@@ -76,8 +76,11 @@ final class Prefs {
     /** "auto" (dark from sunset to sunrise), "light" or "dark". */
     static String theme() {
         String v = sp().getString("theme", "auto");
-        return v.equals("light") || v.equals("dark") ? v : "auto";
+        return v.equals("light") || v.equals("dark") || v.equals("ambiance") ? v : "auto";
     }
+
+    /** The Ambiance home screen: your photos (or Unsplash's) full screen, a big clock, tonight's picks, large apps. */
+    static boolean ambiance() { return theme().equals("ambiance"); }
 
     static void setTheme(String v) { put("theme", v); }
 
