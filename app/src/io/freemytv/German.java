@@ -157,6 +157,11 @@ final class German {
             case "Light": return "Hell";
             case "Dark": return "Dunkel";
             case "Ambience": return "Ambiente";
+            case "Switching the home screen…": return "Startbildschirm wird gewechselt…";
+            case "Going back to the original…": return "Zurück zum Original…";
+            case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV ist an: Die Home-Taste öffnet Free My TV.";
+            case "Original: Amazon's home screen is back.": return "Original: Amazons Startbildschirm ist zurück.";
+            case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "Fire TV sperrt das eigene ADB der App. Einmal, am Computer: ";
             case "Ambience · weather": return "Ambiente · Wetter";
             case "Ambience · mountains": return "Ambiente · Berge";
             case "Ambience · my photos": return "Ambiente · meine Fotos";

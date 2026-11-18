@@ -149,6 +149,11 @@ final class French {
             case "Light": return "Clair";
             case "Dark": return "Sombre";
             case "Ambience": return "Ambiance";
+            case "Switching the home screen…": return "Changement de l'écran d'accueil…";
+            case "Going back to the original…": return "Retour à l'original…";
+            case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV est actif : le bouton Accueil ouvre Free My TV.";
+            case "Original: Amazon's home screen is back.": return "Original : l'accueil d'Amazon est de retour.";
+            case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "le Fire TV bloque l'ADB de l'appli. Une seule fois, sur l'ordinateur : ";
             case "Ambience · weather": return "Ambiance · météo";
             case "Ambience · mountains": return "Ambiance · montagnes";
             case "Ambience · my photos": return "Ambiance · mes photos";

@@ -156,6 +156,11 @@ final class Russian {
             case "Light": return "Светлая";
             case "Dark": return "Тёмная";
             case "Ambience": return "Атмосфера";
+            case "Switching the home screen…": return "Меняю главный экран…";
+            case "Going back to the original…": return "Возвращаю исходный экран…";
+            case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV включён: кнопка «Домой» открывает Free My TV.";
+            case "Original: Amazon's home screen is back.": return "Оригинал: главный экран Amazon вернулся.";
+            case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "Fire TV блокирует собственный ADB приложения. Один раз, на компьютере: ";
             case "Ambience · weather": return "Атмосфера · погода";
             case "Ambience · mountains": return "Атмосфера · горы";
             case "Ambience · my photos": return "Атмосфера · мои фото";

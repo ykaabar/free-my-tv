@@ -233,11 +233,97 @@ final class HomeMode {
         AppLog.w(component + (on ? " on" : " off"));
     }
 
+    // MARK: - Fire TV: no ADB of its own (Fire OS 8.1.0.3 and later refuse an app's local ADB connection)
+
+    /**
+     * What the computer runs once so Free My TV can turn its Home button service on and off by itself. The ad and
+     * telemetry apps are turned off from the computer too (fire/menage-fire.bat, and fire/restaurer-fire.bat to undo).
+     */
+    static final String FIRE_GRANT = "adb shell pm grant " + PKG + " android.permission.WRITE_SECURE_SETTINGS";
+
+    static boolean fireAllowed(Context c) {
+        return c.checkSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    private static void fireApply(Context c, boolean free) {
+        try {
+            busy(c, free ? Ui.tr("Trocando o Início…", "Switching the home screen…") : Ui.tr("Voltando ao original…", "Going back to the original…"));
+            if (free) Watchdog.clear(c);
+            fireSecure(c, free);
+            JSONObject s = state(c);
+            s.put("mode", free ? FREE : ORIGINAL).put("homeReverted", false).put("since", System.currentTimeMillis());
+            save(c, s);
+            notice(c, free ? Ui.tr("Free My TV ligado: o botão Início abre o Free My TV.", "Free My TV is on: the Home button opens Free My TV.")
+                    : Ui.tr("Original: o Início da Amazon voltou.", "Original: Amazon's home screen is back."));
+            done(c, null);
+            android.content.Intent home = free
+                    ? new android.content.Intent(android.content.Intent.ACTION_MAIN).setClassName(PKG, PKG + ".HomeActivity")
+                    : new android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME);
+            c.startActivity(home.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception e) {
+            AppLog.w("fire switch failed", e);
+            String why = e.getMessage() == null || e.getMessage().isEmpty() ? e.getClass().getSimpleName() : e.getMessage();
+            done(c, (free ? Ui.tr("Não deu para ligar o Free My TV: ", "Couldn't turn on Free My TV: ")
+                    : Ui.tr("Não deu para voltar ao original: ", "Couldn't go back to the original: ")) + why);
+        }
+    }
+
+    /** After an update of this app (Android turns its accessibility services off then): the service back on. */
+    private static void fireVerify(Context c, JSONObject s) {
+        if (!FREE.equals(s.optString("mode")) || s.optBoolean("homeReverted") || !fireAllowed(c)) return;
+        try {
+            fireSecure(c, true);
+        } catch (Exception e) {
+            AppLog.w("fire verify: " + e);
+        }
+    }
+
+    /** 3 crashes in 5 minutes: stop opening ours over Amazon's home screen. */
+    private static void fireRevert(Context c, JSONObject s) {
+        if (!FREE.equals(s.optString("mode")) || s.optBoolean("homeReverted")) return;
+        try {
+            fireSecure(c, false);
+            s.put("homeReverted", true);
+            save(c, s);
+            notice(c, Ui.tr("O Início do Free My TV caiu 3 vezes seguidas; voltei para o Início original.",
+                    "Free My TV's home screen crashed 3 times in a row; I switched back to the original one."));
+        } catch (Exception e) {
+            AppLog.w("fire revert: " + e);
+        }
+    }
+
+    /** FireHomeService on or off in the enabled accessibility services (the others, like VoiceView, stay). */
+    private static void fireSecure(Context c, boolean on) throws IOException {
+        if (!fireAllowed(c)) {
+            throw new IOException(Ui.tr("o Fire TV bloqueia o ADB do próprio app. Uma vez, no computador: ",
+                    "Fire TV blocks the app's own ADB. Once, on the computer: ") + FIRE_GRANT);
+        }
+        android.content.ContentResolver r = c.getContentResolver();
+        String current = android.provider.Settings.Secure.getString(r, "enabled_accessibility_services");
+        if (current == null) current = "";
+        List<String> list = new ArrayList<>();
+        for (String one : current.split(":")) if (!one.isEmpty() && !one.equals(FIRE_SERVICE)) list.add(one);
+        if (on == Arrays.asList(current.split(":")).contains(FIRE_SERVICE)) return;
+        if (on) {
+            JSONObject s = state(c);
+            try { s.put("accessibilityWasOff", android.provider.Settings.Secure.getInt(r, "accessibility_enabled", 0) != 1); }
+            catch (JSONException ignored) {}
+            save(c, s);
+            list.add(FIRE_SERVICE);
+        }
+        android.provider.Settings.Secure.putString(r, "enabled_accessibility_services", String.join(":", list));
+        if (on) android.provider.Settings.Secure.putInt(r, "accessibility_enabled", 1);
+        else if (list.isEmpty() && state(c).optBoolean("accessibilityWasOff")) android.provider.Settings.Secure.putInt(r, "accessibility_enabled", 0);
+        AppLog.w(FIRE_SERVICE + (on ? " on" : " off"));
+    }
+
     // MARK: - Switches (main process, from ModeJob)
 
     static void applyNow(Context c, String mode) {
         synchronized (RUN) {
-            if (FREE.equals(mode)) applyFree(c); else applyOriginal(c);
+            if (FIRE) fireApply(c, FREE.equals(mode));
+            else if (FREE.equals(mode)) applyFree(c);
+            else applyOriginal(c);
         }
     }
 
@@ -413,6 +499,10 @@ final class HomeMode {
     static void revertHomeNow(Context app) {
         synchronized (RUN) {
             JSONObject s = state(app);
+            if (FIRE) {
+                fireRevert(app, s);
+                return;
+            }
             try (Adb adb = Adb.connect(app, 10_000, null)) {
                 if (FIRE) {
                     // Amazon's home screen never left: just stop opening ours on top of it.
@@ -460,6 +550,10 @@ final class HomeMode {
     static void verifyNow(Context app) {
         synchronized (RUN) {
             JSONObject s = state(app);
+            if (FIRE) {
+                fireVerify(app, s);
+                return;
+            }
             String fingerprint = Build.FINGERPRINT;
             boolean updated = !fingerprint.equals(s.optString("fingerprint", fingerprint));
             try {

@@ -9,6 +9,9 @@
     <!-- After the TV boots (and after a TV update), checks that Free My TV mode is still as you left it. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- The sleep timer: the TV goes to standby at the minute you picked (Android 12+ asks for exact alarms). -->
+    <!-- Fire TV only, granted from the computer (adb shell pm grant): Fire OS refuses the app's own ADB, so this lets
+         it turn its Home button service on and off. -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <!-- Android 11+: without this list the app can't "see" the other apps (getLeanbackLaunchIntentForPackage
