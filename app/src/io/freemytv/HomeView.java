@@ -3537,7 +3537,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return ambSource.equals("album") ? "album" : ambSource + ":" + ambianceQuery();
     }
 
-    /** An Unsplash search that matches the weather and the time of day (golden hour near sunrise and sunset). */
+    /**
+     * An Unsplash search whose subject is the weather itself, at this time of day: the sky, the rain, the snow, the
+     * fog (golden hour near sunrise and sunset). Mountains are the "landscape" source's.
+     */
     private String ambianceQuery() {
         if (ambSource.equals("landscape")) return "mountain landscape";
         HomeData.Weather wx = data.weather;
@@ -3545,14 +3548,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean day = wx.isDay;
         long now = System.currentTimeMillis(), golden = 45 * 60_000L;
         boolean gold = (wx.sunset > 0 && Math.abs(now - wx.sunset) < golden) || (wx.sunrise > 0 && Math.abs(now - wx.sunrise) < golden);
-        if (code < 0) return day ? "mountain landscape" : "starry night mountains";
-        if (code >= 95) return "thunderstorm landscape";
-        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return day ? "snowy mountains" : "snowy mountains night";
-        if (code >= 51) return day ? "rainy mountains" : "rainy night landscape";
-        if (code == 45 || code == 48) return "foggy mountains";
-        if (gold && code <= 2) return "sunset mountains";
-        if (code >= 2) return day ? "cloudy mountains" : "moody night mountains";
-        return day ? "sunny alps" : "starry night mountains";
+        if (code < 0) return day ? "blue sky clouds" : "starry night sky";
+        if (code >= 95) return "lightning storm sky";
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return day ? "snowfall" : "snowy night street lights";
+        if (code >= 51) return day ? "rainy day window drops" : "rainy night city lights";
+        if (code == 45 || code == 48) return day ? "fog forest" : "foggy night";
+        if (gold && code <= 2) return "golden hour sky";
+        if (code == 3) return day ? "overcast sky" : "night clouds moon";
+        if (code == 2) return day ? "clouds blue sky" : "night clouds moon";
+        return day ? "sunny blue sky" : "starry night sky";
     }
 
     /** Time for another photo: the weather (or the source) changed, or it's been shown for a while. */
