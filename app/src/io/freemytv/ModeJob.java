@@ -21,21 +21,26 @@ public class ModeJob extends JobService {
         final String mode = extras.getString("mode", "");
         final Context app = getApplicationContext();
         new Thread(() -> {
-            try {
-                switch (action) {
-                    case APPLY: HomeMode.applyNow(app, mode); break;
-                    case VERIFY: HomeMode.verifyNow(app); break;
-                    case REVERT: HomeMode.revertHomeNow(app); break;
-                    case MEMORY: HomeMode.measureMemoryNow(app, mode); break;
-                    case REMOTE: HomeMode.ensureRemoteServiceNow(app); break;
-                    default: break;
-                }
-            } catch (Throwable t) {
-                AppLog.w("job " + action + " failed: " + t);
-            }
+            run(app, action, mode);
             jobFinished(params, false);
         }, "free-my-tv-" + action).start();
         return true;
+    }
+
+    /** The work itself, on a background thread of the main process. */
+    static void run(Context app, String action, String mode) {
+        try {
+            switch (action) {
+                case APPLY: HomeMode.applyNow(app, mode); break;
+                case VERIFY: HomeMode.verifyNow(app); break;
+                case REVERT: HomeMode.revertHomeNow(app); break;
+                case MEMORY: HomeMode.measureMemoryNow(app, mode); break;
+                case REMOTE: HomeMode.ensureRemoteServiceNow(app); break;
+                default: break;
+            }
+        } catch (Throwable t) {
+            AppLog.w("job " + action + " failed: " + t);
+        }
     }
 
     @Override public boolean onStopJob(JobParameters params) {
@@ -44,6 +49,17 @@ public class ModeJob extends JobService {
 
     /** Schedules a job (one pending per action: a new request replaces the old one). */
     static void schedule(Context c, String action, String mode, long delayMs) {
+        // Fire OS holds back the jobs of apps from outside its store: what can start now runs as a plain service
+        // (allowed from the settings screen, and from a broadcast like the app's update).
+        if (HomeMode.FIRE && delayMs == 0) {
+            try {
+                c.startService(new android.content.Intent(c, ModeService.class)
+                        .putExtra("action", action).putExtra("mode", mode == null ? "" : mode));
+                return;
+            } catch (RuntimeException e) {
+                AppLog.w("mode service: " + e.getMessage());
+            }
+        }
         JobScheduler scheduler = c.getSystemService(JobScheduler.class);
         if (scheduler == null) return;
         PersistableBundle extras = new PersistableBundle();

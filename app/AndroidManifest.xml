@@ -129,6 +129,11 @@
             </intent-filter>
         </service>
 
+        <!-- The same switches as a plain service, on Fire TV (whose system holds back the jobs of sideloaded apps). -->
+        <service
+            android:name=".ModeService"
+            android:exported="false" />
+
         <!-- The switches, as background jobs in the main process. -->
         <service
             android:name=".ModeJob"
