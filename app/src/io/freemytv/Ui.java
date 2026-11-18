@@ -35,6 +35,8 @@ final class Ui {
     static volatile boolean en = "en".equals(language), es = "es".equals(language), de = "de".equals(language),
             ru = "ru".equals(language), fr = "fr".equals(language);
     static Typeface thin, light, displayMedium, displaySemibold, regular, medium, semibold;
+    /** Antonio Light (OFL), the Ambiance clock's tall narrow digits, as couch-tv's. */
+    static Typeface clock;
     private static boolean loaded;
     private static final Rect BOUNDS = new Rect();
     private static final RectF OVAL = new RectF();
@@ -50,6 +52,11 @@ final class Ui {
         regular = font(a, 14, 400);
         medium = font(a, 14, 500);
         semibold = font(a, 14, 600);
+        try {
+            clock = Typeface.createFromAsset(a, "fonts/Antonio-Light.ttf");
+        } catch (RuntimeException e) {
+            clock = Typeface.create("sans-serif-condensed-light", Typeface.NORMAL);
+        }
     }
 
     /** Inter at an optical size (14 = text, 32 = display) and weight; the system font if the file is missing. */

@@ -174,10 +174,13 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   iOS 26 `photos.icloud.com/shared/album/<key>` links go through CloudKit's public resolve and the zone's changes,
   older `#B0…` links through sharedstreams; both undocumented by Apple). The weather takes the room the others leave;
   when the row is too full the photo card goes first, then *Today*.
-- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`): a photo full screen (Unsplash's for the
-  weather and the time of day via `Nature.mood`, mountains, or the iCloud album), a big frosted-glass clock (the photo's
-  frosted copy, lightened), today's line, and the apps in a frosted-glass gallery that turns light or dark with the
-  photo (logos white or dark, banners grey, in color when focused). No picks there.
+- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`), after couch-tv's home (MIT): weather =
+  couch-tv's five scenes in `assets/scenes` (Night, Dawn, Golden hour, Fog under clouds, Waterline in clear weather, as
+  `HomeView.sceneFor` picks them), each with a cut-out drawn over the clock so the scenery crosses the digits; mountains
+  = Unsplash (`Nature.mood`); my photos = the iCloud album. The clock is Antonio Light (`Ui.clock`), filled with the
+  scene's glass copy (lined up with the photo), with a rim, a sheen and a shadow; per-scene positions in `SCENE_AT`. The
+  date and weather sit on one line above it, today's line above the dock, and the apps in a glass dock of rounded
+  squares (dim at rest; focused: bigger, raised, a white ring and the name). No picks there.
 - Picks: the focused card is the wide one and the background follows it; holding OK on a card plays its trailer
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
 - The moon button is the sleep timer (`Sleep`): 30/60/90 min, an exact alarm wakes `HomeReceiver`, which presses

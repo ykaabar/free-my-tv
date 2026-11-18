@@ -3404,47 +3404,52 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 | (Math.round(ag + (bg - ag) * f) << 8) | Math.round(ab + (bb - ab) * f);
     }
 
-    // MARK: - Ambiance design: a photo full screen (the weather's, mountains or yours), a big glass clock in the
-    // middle, today's line, and the apps in a frosted-glass gallery that turns light or dark with the photo
+    // MARK: - Ambiance design (after couch-tv's scenes, MIT): a scene full screen with a big glass clock that sits
+    // behind the scenery, the date and weather on one line above it, today's line, and the apps in a glass dock
 
-    // Measurements in the 1920 × 1080 space.
-    private static final float A_DATE_BASE = 168, A_CLOCK_BASE = 452, A_WEATHER_BASE = 540, A_TODAY_TOP = 600;
-    private static final float A_TILE_W = 240, A_TILE_GAP = 28, A_PAD = 26, A_TILE_R = 18, A_BOTTOM = 1030;
+    /**
+     * couch-tv's five scenes (assets/scenes, made for couch-tv with an image model, free to use): the photo, a cut-out
+     * of everything in front of the sky (drawn over the clock), and a blurred copy for the clock's glass. Per scene, in
+     * the 1920 × 1080 space: the date's top, the clock's top and size, its left edge (-1 = centered), dark ink, the
+     * glass fill (0 = as is, 1 = brighter, 2 = darker) and the rim's color.
+     */
+    private static final String[] SCENES = {"night", "golden", "water", "fog", "dawn"};
+    private static final float[][] SCENE_AT = {
+        // date top, clock top, size, left, dark ink, fill, has a cut-out
+        {96, 150, 400, -1, 0, 1, 1},
+        {106, 152, 390, -1, 0, 0, 1},
+        {216, 268, 420, -1, 0, 0, 0},
+        {116, 172, 470, 96, 1, 2, 1},
+        {176, 230, 400, -1, 0, 0, 1},
+    };
+    private static final int[] SCENE_RIM = {0x80FFD7E1, 0x8CFFFFFF, 0x8CFFFFFF, 0x99FFFFFF, 0x8CFFFFFF};
+    private static final int[] SCENE_SHADE_TOP = {0x00000000, 0x00000000, 0x6B000C18, 0x00000000, 0x6B321C0C};
+
+    // The dock (1920 × 1080): square icons, gaps and padding, its bottom.
+    private static final float A_ICON = 112, A_ICON_GAP = 26, A_DOCK_PAD_X = 28, A_DOCK_PAD_Y = 22, A_DOCK_BOTTOM = 1034;
     private static final long AMB_EVERY = 5 * 60_000L, AMB_FADE = 1500, AMB_RETRY = 60_000L;
     private static final String FALLBACK = "#stand-in";
 
     private boolean amb;
     private String ambSource = "", ambShownFor = "";
-    private Bitmap ambNow, ambOld, ambFrost, ambFrostOld;
+    private Bitmap ambNow, ambOld, ambFrost, ambFrostOld, ambFg;
     private BitmapShader ambFrostShader, ambFrostOldShader;
-    private boolean ambTopLight, ambBottomLight;    // the shown photo where the clock and the gallery sit
+    private int ambScene = -1;                      // index in SCENES, or -1 for a photo
+    private boolean ambTopLight, ambBottomLight;    // the shown photo where the clock and the dock sit
+    private boolean ambLate;                        // after 9 pm: the scene dims a little
     private long ambFadeAt, ambNextAt;
     private boolean ambLoading;
     private String ambKey = "", ambCredit = "";
     private final java.util.Random ambRandom = new java.util.Random();
-    private Paint aDate, aClock, aClockRim, aClockShade, aWeather, aAge, aCredit;
+    private Paint aDate, aWx, aClock, aClockRim, aClockShade, aClockSheen, aToday, aLabel, aCredit;
     private TextPaint aQuote;
     private final Paint ambRing = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ambGlass = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Paint ambFgPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Matrix ambMatrix = new Matrix();
-    private LinearGradient[] ambTileShaders = new LinearGradient[0];
-    private Shader ambTop, ambFallback;
-    private StaticLayout ambQuoteLayout;
-    private String ambQuoteKey = "", ambWeather = "", ambWeatherKey = "";
-    /** Banners in grey until focused (the logos are white or dark until focused). */
-    private final android.graphics.ColorMatrixColorFilter ambGrey = greyFilter();
-    private final android.graphics.PorterDuffColorFilter inkLogo =
-            new android.graphics.PorterDuffColorFilter(0xFF1D1D1F, android.graphics.PorterDuff.Mode.SRC_IN);
-    private android.graphics.ColorFilter clockLight, clockDark;
-
-    private static android.graphics.ColorMatrixColorFilter greyFilter() {
-        android.graphics.ColorMatrix m = new android.graphics.ColorMatrix();
-        m.setSaturation(0);
-        android.graphics.ColorMatrix lift = new android.graphics.ColorMatrix(new float[] {
-            0.9f, 0, 0, 0, 18, 0, 0.9f, 0, 0, 18, 0, 0, 0.9f, 0, 18, 0, 0, 0, 1, 0});
-        m.postConcat(lift);
-        return new android.graphics.ColorMatrixColorFilter(m);
-    }
+    private Shader ambShade, ambFallback, ambSheen;
+    private String ambSheenKey = "", ambQuote = "", ambQuoteKey = "", ambWeather = "", ambWeatherKey = "";
+    private android.graphics.ColorFilter clockLight, clockBright, clockDark;
 
     /** The theme changed in Home Settings (Ambiance on or off, or its photo source): lay everything out again. */
     private void checkStyle() {
@@ -3462,15 +3467,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambKey = "";
             nextAmbiancePhoto();
         } else {
-            ambNow = ambOld = ambFrost = ambFrostOld = null;
+            ambNow = ambOld = ambFrost = ambFrostOld = ambFg = null;
             ambFrostShader = ambFrostOldShader = null;
             ambKey = ambCredit = ambShownFor = "";
+            ambScene = -1;
             ambFadeAt = 0;
             ambTopLight = ambBottomLight = false;
         }
-        if (zone == Z_CARDS || (zone == Z_TOP && topIndex < 3)) {
-            zone = Z_SHELF;
-        }
+        if (zone == Z_CARDS || (zone == Z_TOP && topIndex < 3)) zone = Z_SHELF;
         layoutShelf();
         layoutLight();
         updateCards();
@@ -3482,98 +3486,128 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private float grow() {
-        return amb ? 0.08f : FOCUS_GROW;
+        return amb ? 0.16f : FOCUS_GROW;
     }
 
     private void makeAmbiancePaints() {
-        aDate = Ui.text(Ui.medium, 32 * k, 0xFFF7F5F0);
-        aClock = Ui.numbers(Ui.regular, 300 * k, 0xFFFFFFFF);
-        aClock.setLetterSpacing(-0.03f);
-        aClockRim = Ui.numbers(Ui.regular, 300 * k, 0x66FFFFFF);
-        aClockRim.setLetterSpacing(-0.03f);
+        aDate = Ui.text(Ui.medium, 34 * k, 0xFFFFFFFF);
+        aWx = Ui.text(Ui.regular, 34 * k, 0xC7FFFFFF);
+        aClock = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
+        aClock.setTypeface(Ui.clock);
+        aClock.setLetterSpacing(-0.02f);
+        aClockRim = new Paint(aClock);
         aClockRim.setStyle(Paint.Style.STROKE);
-        aClockRim.setStrokeWidth(1.6f * k);
-        aClockShade = Ui.numbers(Ui.regular, 300 * k, 0x33000000);
-        aClockShade.setLetterSpacing(-0.03f);
-        aClockShade.setMaskFilter(new BlurMaskFilter(20 * k, BlurMaskFilter.Blur.NORMAL));
-        aWeather = Ui.text(Ui.medium, 32 * k, 0xFFF7F5F0);
-        aAge = Ui.text(Ui.semibold, 30 * k, 0xFFF7F5F0);
-        aQuote = new TextPaint(Ui.text(Ui.regular, 25 * k, 0xFFE6E3DC));
+        aClockRim.setStrokeWidth(1.5f * k);
+        aClockShade = new Paint(aClock);
+        aClockShade.setMaskFilter(new BlurMaskFilter(28 * k, BlurMaskFilter.Blur.NORMAL));
+        aClockSheen = new Paint(aClock);
+        aToday = Ui.text(Ui.semibold, 26 * k, 0xFFFFFFFF);
+        aToday.setTextAlign(Paint.Align.CENTER);
+        aQuote = new TextPaint(Ui.text(Ui.regular, 23 * k, 0xE6FFFFFF));
         aQuote.setTextSkewX(-0.18f);    // italics, from the regular face
+        aQuote.setTextAlign(Paint.Align.CENTER);
+        aLabel = Ui.text(Ui.medium, 21 * k, 0xFFFFFFFF);
+        aLabel.setTextAlign(Paint.Align.CENTER);
         aCredit = Ui.text(Ui.medium, 17 * k, 0xB3FFFFFF);
         aCredit.setTextAlign(Paint.Align.RIGHT);
-        for (Paint p : new Paint[] {aDate, aWeather, aAge}) p.setTextAlign(Paint.Align.CENTER);
-        // The clock's glass: the blurred photo behind it, lightened (or darkened on a light photo).
+        for (Paint p : new Paint[] {aToday, aQuote, aLabel, aCredit}) p.setShadowLayer(14 * k, 0, 2 * k, 0x8C000000);
         clockLight = new android.graphics.LightingColorFilter(0xB4B4B4, 0x4E4E4E);
-        clockDark = new android.graphics.LightingColorFilter(0x8C8C8C, 0x000000);
+        clockBright = new android.graphics.LightingColorFilter(0xFFFFFF, 0x1A1A1A);
+        clockDark = new android.graphics.LightingColorFilter(0x757575, 0x000000);
         ambRing.setStyle(Paint.Style.STROKE);
-        ambTop = ambFallback = null;
-        ambQuoteKey = "";
-        ambWeatherKey = "";
+        ambShade = ambFallback = ambSheen = null;
+        ambSheenKey = ambQuoteKey = ambWeatherKey = "";
         ambInk();
     }
 
-    /** Text colors for the photo: white with a soft shadow, or dark ink on a light sky. */
+    /** The date's ink: white with a soft shadow, or dark on a light sky (the Fog scene, a light photo). */
     private void ambInk() {
         if (aDate == null) return;
-        int ink = ambTopLight ? 0xFF1D1D1F : 0xFFF7F5F0, dim = ambTopLight ? 0xFF3A3A3C : 0xFFE6E3DC;
-        int shade = ambTopLight ? 0x40FFFFFF : 0x80000000;
-        for (Paint p : new Paint[] {aDate, aWeather, aAge}) {
-            p.setColor(ink);
-            p.setShadowLayer(16 * k, 0, 2 * k, shade);
-        }
-        aQuote.setColor(dim);
-        aQuote.setShadowLayer(16 * k, 0, 2 * k, shade);
-        aClockRim.setColor(ambTopLight ? 0x4D000000 : 0x73FFFFFF);
-        aClockShade.setColor(ambTopLight ? 0x00000000 : 0x38000000);
-        aCredit.setColor(ambBottomLight ? 0x991D1D1F : 0xB3FFFFFF);
-        ambQuoteKey = "";
+        boolean dark = ambScene >= 0 ? SCENE_AT[ambScene][4] == 1 : ambTopLight;
+        int shade = dark ? 0x00000000 : 0x40000000;
+        aDate.setColor(dark ? 0xFF16201D : ambScene == 0 ? 0xEBFFE8EE : 0xFFFFFFFF);
+        aWx.setColor(dark ? 0xB816201D : ambScene == 0 ? 0xC7FFE8EE : 0xC7FFFFFF);
+        aDate.setShadowLayer(18 * k, 0, 2 * k, shade);
+        aWx.setShadowLayer(18 * k, 0, 2 * k, shade);
+        aCredit.setColor(0xB3FFFFFF);
+        ambWeatherKey = "";
     }
 
-    // Which photo
+    // Which background
 
-    /** What to show now: the source and, for the weather, its mood ("snowy mountains", "starry night mountains"…). */
+    /** What to show now: the scene for the time of day and the weather, Unsplash's mountains, or the album. */
     private String ambWanted() {
-        return ambSource.equals("album") ? "album" : ambSource + ":" + ambianceQuery();
+        if (ambSource.equals("album")) return "album";
+        if (ambSource.equals("landscape")) return "landscape";
+        return "scene:" + SCENES[sceneFor()];
     }
 
     /**
-     * An Unsplash search whose subject is the weather itself, at this time of day: the sky, the rain, the snow, the
-     * fog (golden hour near sunrise and sunset). Mountains are the "landscape" source's.
+     * The scene for now, as couch-tv picks it: Night after dusk, Dawn around sunrise, Golden hour before sunset, and
+     * in the day Fog under clouds, rain or snow, the Waterline in clear weather.
      */
-    private String ambianceQuery() {
-        if (ambSource.equals("landscape")) return "mountain landscape";
+    private int sceneFor() {
         HomeData.Weather wx = data.weather;
-        int code = wx.code;
-        boolean day = wx.isDay;
-        long now = System.currentTimeMillis(), golden = 45 * 60_000L;
-        boolean gold = (wx.sunset > 0 && Math.abs(now - wx.sunset) < golden) || (wx.sunrise > 0 && Math.abs(now - wx.sunrise) < golden);
-        if (code < 0) return day ? "blue sky clouds" : "starry night sky";
-        if (code >= 95) return "lightning storm sky";
-        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return day ? "snowfall" : "snowy night street lights";
-        if (code >= 51) return day ? "rainy day window drops" : "rainy night city lights";
-        if (code == 45 || code == 48) return day ? "fog forest" : "foggy night";
-        if (gold && code <= 2) return "golden hour sky";
-        if (code == 3) return day ? "overcast sky" : "night clouds moon";
-        if (code == 2) return day ? "clouds blue sky" : "night clouds moon";
-        return day ? "sunny blue sky" : "starry night sky";
+        long now = System.currentTimeMillis();
+        String phase;
+        if (wx.sunrise > 0 && wx.sunset > 0) {
+            long m = 60_000L;
+            if (now < wx.sunrise - 30 * m || now > wx.sunset + 40 * m) phase = "night";
+            else if (now < wx.sunrise + 75 * m) phase = "dawn";
+            else if (now > wx.sunset - 90 * m) phase = "dusk";
+            else phase = "day";
+        } else {
+            int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+            phase = h >= 5 && h < 8 ? "dawn" : h >= 8 && h < 16 ? "day" : h >= 16 && h < 19 ? "dusk" : "night";
+        }
+        switch (phase) {
+            case "night": return 0;
+            case "dawn": return 4;
+            case "dusk": return 1;
+            default:
+                int code = wx.code;
+                boolean grey = code == 3 || code == 45 || code == 48 || (code >= 51 && code <= 86) || code >= 95;
+                return grey ? 3 : 2;
+        }
     }
 
-    /** Time for another photo: the weather (or the source) changed, or it's been shown for a while. */
+    /** Time for another background: the scene (or the source) changed, or a photo has been shown for a while. */
     private boolean ambianceDue(long up) {
+        boolean late = isLate();
+        if (late != ambLate) {
+            ambLate = late;
+            heroDirty = true;
+            sky.invalidate();
+        }
         if (ambLoading) return false;
         if (ambNow == null || up >= ambNextAt) return true;
         return !ambShownFor.startsWith(ambWanted());
     }
 
+    private static boolean isLate() {
+        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        return h >= 21 || h < 6;
+    }
+
     /**
-     * The next photo, loaded in the background with its frosted copy (for the glass) and how light it is where the
-     * clock and the gallery sit. From your iCloud album (portraits shown whole), or Unsplash's photos for this mood
-     * (credited, as Unsplash asks); while those download, the screensaver's landscapes stand in.
+     * The next background, loaded in the background: a scene (photo, cut-out, glass copy) from the app, or a photo
+     * from the iCloud album (portraits shown whole) or Unsplash's mountains (credited, as Unsplash asks), with its
+     * frosted copy and how light it is where the clock and the dock sit.
      */
     private void nextAmbiancePhoto() {
         if (!amb || ambLoading || w == 0) return;
         final String wanted = ambWanted();
+        long up = SystemClock.uptimeMillis();
+        if (wanted.startsWith("scene:")) {
+            final int scene = sceneFor();
+            if (ambScene == scene && ambNow != null) {
+                ambShownFor = wanted;
+                ambNextAt = up + AMB_EVERY;
+                return;
+            }
+            loadScene(scene, wanted);
+            return;
+        }
         java.io.File file = null;
         String key = "", credit = "", shownFor = wanted;
         boolean fit = false;
@@ -3587,7 +3621,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             }
         } else {
             Nature nature = Nature.get(getContext());
-            List<Recs.Pick> list = nature.mood(ambianceQuery());
+            List<Recs.Pick> list = nature.mood("mountain landscape");
             boolean standIn = list.isEmpty();
             if (standIn) {
                 list = nature.showcase();
@@ -3602,7 +3636,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                         + (p.meta.equals("Unsplash") ? "" : " / Unsplash");
             }
         }
-        long up = SystemClock.uptimeMillis();
         if (file == null) {
             ambNextAt = up + AMB_RETRY;
             return;
@@ -3625,37 +3658,82 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 photo = r[0];
                 frost = r.length > 1 ? r[1] : null;
                 if (frost != null) {
-                    top = luminance(frost, 0.12f, 0.55f);
-                    bottom = luminance(frost, 0.76f, 0.96f);
+                    top = luminance(frost, 0.08f, 0.5f);
+                    bottom = luminance(frost, 0.78f, 0.98f);
                 }
             } catch (Exception | OutOfMemoryError ignored) {
             }
             final Bitmap p2 = photo, f2 = frost;
             final float top2 = top, bottom2 = bottom;
-            handler.post(() -> {
-                ambLoading = false;
-                ambNextAt = SystemClock.uptimeMillis() + (p2 == null ? AMB_RETRY : AMB_EVERY);
-                if (p2 == null || !amb) return;
-                ambOld = ambNow;
-                ambFrostOld = ambFrost;
-                ambFrostOldShader = ambFrostShader;
-                ambNow = p2;
-                ambFrost = f2;
-                ambFrostShader = f2 == null ? null : new BitmapShader(f2, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-                ambKey = k2;
-                ambCredit = credit2;
-                ambShownFor = for2;
-                ambTopLight = top2 > 0.62f;
-                ambBottomLight = bottom2 > 0.6f;
-                ambFadeAt = SystemClock.uptimeMillis();
-                ambInk();
-                checkNight(true);
-                heroDirty = tilesDirty = statusDirty = true;
-                sky.invalidate();
-                platter.invalidate();
-                wake();
-            });
+            handler.post(() -> showAmbiance(p2, f2, null, -1, k2, credit2, for2, top2 > 0.62f, bottom2 > 0.6f));
         });
+    }
+
+    private void loadScene(final int scene, final String wanted) {
+        ambLoading = true;
+        final android.content.res.AssetManager assets = getContext().getAssets();
+        final int width = w, height = h;
+        final String name = "scenes/" + SCENES[scene];
+        final boolean cutOut = SCENE_AT[scene][6] == 1;
+        LOADER.execute(() -> {
+            Bitmap photo = null, glass = null, fg = null;
+            try {
+                photo = sized(asset(assets, name + ".jpg", 1), width, height);
+                glass = asset(assets, name + "-glass.jpg", 2);     // a blur: half size is plenty
+                if (cutOut) fg = sized(asset(assets, name + "-fg.webp", 1), width, height);
+            } catch (Exception | OutOfMemoryError e) {
+                AppLog.w("scene " + name + ": " + e);
+            }
+            final Bitmap p2 = photo, g2 = glass, f2 = fg;
+            handler.post(() -> showAmbiance(p2, g2, f2, scene, "scene:" + scene, "", wanted, false, false));
+        });
+    }
+
+    private static Bitmap asset(android.content.res.AssetManager assets, String path, int sample) throws java.io.IOException {
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inSampleSize = sample;
+        try (java.io.InputStream in = assets.open(path)) {
+            Bitmap b = android.graphics.BitmapFactory.decodeStream(in, null, o);
+            if (b == null) throw new java.io.IOException("can't decode " + path);
+            return b;
+        }
+    }
+
+    /** The scenes are 1920 × 1080: scaled when the screen draws at another size. */
+    private static Bitmap sized(Bitmap b, int width, int height) {
+        if (b == null || (b.getWidth() == width && b.getHeight() == height)) return b;
+        Bitmap s = Bitmap.createScaledBitmap(b, width, height, true);
+        if (s != b) b.recycle();
+        return s;
+    }
+
+    private void showAmbiance(Bitmap photo, Bitmap frost, Bitmap fg, int scene, String key, String credit, String shownFor,
+                              boolean topLight, boolean bottomLight) {
+        ambLoading = false;
+        ambNextAt = SystemClock.uptimeMillis() + (photo == null ? AMB_RETRY : AMB_EVERY);
+        if (photo == null || !amb) return;
+        ambOld = ambNow;
+        ambFrostOld = ambFrost;
+        ambFrostOldShader = ambFrostShader;
+        ambNow = photo;
+        ambFrost = frost;
+        ambFrostShader = frost == null ? null : new BitmapShader(frost, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+        ambFg = fg;
+        ambScene = scene;
+        ambKey = key;
+        ambCredit = credit;
+        ambShownFor = shownFor;
+        ambTopLight = scene >= 0 ? SCENE_AT[scene][4] == 1 : topLight;
+        ambBottomLight = bottomLight;
+        ambShade = null;
+        ambSheenKey = "";
+        ambFadeAt = SystemClock.uptimeMillis();
+        ambInk();
+        checkNight(true);
+        heroDirty = tilesDirty = statusDirty = true;
+        sky.invalidate();
+        platter.invalidate();
+        wake();
     }
 
     /** Average brightness (0 to 1) of a band of rows, every other pixel. Loader thread. */
@@ -3688,14 +3766,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     // Background
 
-    /** The photo (cross-fading to the next one), with a soft shade at the top for the clock. */
+    /** The photo (cross-fading to the next one), its scene's shade, dimmer late at night and with the drawer open. */
     private void drawAmbianceSky(Canvas c) {
-        if (ambTop == null) {
-            ambTop = new LinearGradient(0, 0, 0, h * 0.62f, 0x47000000, 0x00000000, Shader.TileMode.CLAMP);
+        if (ambShade == null) {
+            int top = ambScene >= 0 ? SCENE_SHADE_TOP[ambScene] : 0x40000000;
+            ambShade = new LinearGradient(0, 0, 0, h * 0.58f, top, top & 0x00FFFFFF, Shader.TileMode.CLAMP);
             ambFallback = new LinearGradient(0, 0, 0, h, new int[] {0xFF22344A, 0xFF4A5560, 0xFF6E6152, 0xFF262624, 0xFF0F1113},
                     new float[] {0, 0.38f, 0.62f, 0.82f, 1}, Shader.TileMode.CLAMP);
         }
-        android.graphics.ColorFilter v = veil(0.45f * Ui.clamp(drawer.value), 0xFF000000);   // drawer open: darker
+        android.graphics.ColorFilter v = veil(Math.max(0.45f * Ui.clamp(drawer.value), ambDim()), 0xFF000000);
         float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE);
         if (ambNow == null || (e < 1 && ambOld == null)) {
             fill.setColorFilter(v);
@@ -3709,12 +3788,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (e < 1 && ambOld != null) drawImage(c, ambOld, 1);
         if (ambNow != null) drawImage(c, ambNow, e);
         imagePaint.setColorFilter(null);
-        if (!ambTopLight) {
-            fill.setColor(0xFF000000);
-            fill.setShader(ambTop);
-            c.drawRect(0, 0, w, h * 0.62f, fill);
-            fill.setShader(null);
-        }
+        fill.setColor(0xFF000000);
+        fill.setShader(ambShade);
+        c.drawRect(0, 0, w, h * 0.58f, fill);
+        fill.setShader(null);
+    }
+
+    /** The scene's own darkening: Night is a little darker, and every scene after 9 pm. */
+    private float ambDim() {
+        float d = ambScene == 0 ? 0.14f : 0;
+        return ambLate ? Math.max(d, 0.28f) : d;
     }
 
     /** The frosted copy of the photo, lined up with the photo on screen (it's 1/6 of its size). */
@@ -3727,21 +3810,68 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // Clock, date, weather and today
 
     private void drawAmbianceTop(Canvas c) {
-        float cx = w / 2f;
-        c.drawText(dateText, cx, A_DATE_BASE * k, aDate);
-        drawGlassClock(c, cx);
-        drawAmbianceWeather(c, cx);
-        drawAmbianceToday(c, cx);
+        float[] at = ambScene >= 0 ? SCENE_AT[ambScene] : SCENE_AT[0];
+        boolean left = at[3] >= 0;
+        float x = left ? at[3] * k : w / 2f;
+        drawAmbianceDate(c, x, at[0] * k, left);
+        drawGlassClock(c, at, left);
+        if (ambFg != null) {
+            // The scenery in front of the clock: the peaks, the volcano and the hills cross the digits.
+            ambFgPaint.setColorFilter(ambDim() > 0 ? veil(ambDim(), 0xFF000000) : null);
+            ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE)));
+            c.drawBitmap(ambFg, 0, 0, ambFgPaint);
+        }
+        drawAmbianceToday(c);
     }
 
-    /** The time in frosted glass: the photo blurred behind each digit, lighter (or darker), with a thin bright rim. */
-    private void drawGlassClock(Canvas c, float cx) {
-        float tw = aClock.measureText(clockText), x = cx - tw / 2, base = A_CLOCK_BASE * k;
-        if (aClockShade.getAlpha() > 0) c.drawText(clockText, x, base + 6 * k, aClockShade);
+    /** "Wednesday 18 November   ☁ 8° Cloudy", on one line, centered (left-aligned on the Fog scene). */
+    private void drawAmbianceDate(Canvas c, float x, float top, boolean left) {
+        float base = top + 30 * k;
+        HomeData.Weather wx = data.weather;
+        boolean weather = Prefs.weather() && !Double.isNaN(wx.temp);
+        if (weather) {
+            String key = data.weatherAt + "|" + Prefs.version + "|" + Ui.language + "|" + clockMinute / 10;
+            if (!key.equals(ambWeatherKey)) {
+                ambWeatherKey = key;
+                ambWeather = HomeData.degrees(wx.temp) + " " + HomeData.condition(wx.code, wx.isDay);
+            }
+        }
+        float dw = aDate.measureText(dateText), gap = 26 * k, size = 34 * k;
+        String symbol = weather ? Symbols.weather(wx.code, wx.isDay) : null;
+        float sw = weather ? Symbols.width(getContext(), symbol, size) : 0;
+        float ww = weather ? aWx.measureText(ambWeather) : 0;
+        float total = dw + (weather ? gap + sw + 10 * k + ww : 0);
+        float sx = left ? x : x - total / 2;
+        c.drawText(dateText, sx, base, aDate);
+        if (!weather) return;
+        float wxX = sx + dw + gap;
+        Symbols.draw(getContext(), c, symbol, wxX + sw / 2, base - Ui.halfCap(aDate), size, aWx.getColor());
+        c.drawText(ambWeather, wxX + sw + 10 * k, base, aWx);
+    }
+
+    /**
+     * The time in glass: the scene's blurred copy fills each digit (lined up with the photo), with a thin bright rim,
+     * a sheen from the top left and a soft shadow, as couch-tv draws it.
+     */
+    private void drawGlassClock(Canvas c, float[] at, boolean left) {
+        // couch-tv's sizes are CSS font sizes; Antonio's digits come out at 82% of that on a Canvas.
+        float size = at[2] * 0.82f * k;
+        aClock.setTextSize(size);
+        aClockRim.setTextSize(size);
+        aClockShade.setTextSize(size);
+        aClockSheen.setTextSize(size);
+        float tw = aClock.measureText(clockText);
+        float x = left ? at[3] * k : w / 2f - tw / 2, base = (at[1] + 0.76f * at[2]) * k;
+        int fill = ambScene >= 0 ? (int) at[5] : -1;
+        if (fill != 2) {
+            aClockShade.setColor(0x29000000);
+            c.drawText(clockText, x, base + 6 * k, aClockShade);
+        }
         if (ambFrostShader != null) {
             aClock.setShader(frostShader(ambFrostShader, ambFrost));
-            aClock.setColorFilter(ambTopLight ? clockDark : clockLight);
+            aClock.setColorFilter(fill == 1 ? clockBright : fill == 2 ? clockDark : fill == 0 ? null : (ambTopLight ? clockDark : clockLight));
             aClock.setColor(0xFFFFFFFF);
+            aClock.setAlpha(fill == 2 ? 204 : fill == 1 ? 230 : 255);
         } else {
             aClock.setShader(null);
             aClock.setColorFilter(null);
@@ -3749,77 +3879,67 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         c.drawText(clockText, x, base, aClock);
         aClock.setShader(null);
+        aClock.setColorFilter(null);
+        // The sheen: light from the top left, fading through the middle (not on the Fog scene's dark glass).
+        if (fill != 2) {
+            String key = Math.round(x) + "|" + Math.round(base) + "|" + Math.round(tw);
+            if (!key.equals(ambSheenKey)) {
+                ambSheenKey = key;
+                float top = base - 0.86f * size;
+                ambSheen = new LinearGradient(x, top, x + tw * 0.5f, top + size * 0.9f,
+                        new int[] {0x8CFFFFFF, 0x00FFFFFF, 0x00FFFFFF, 0x38FFFFFF}, new float[] {0, 0.38f, 0.7f, 1}, Shader.TileMode.CLAMP);
+            }
+            aClockSheen.setShader(ambSheen);
+            c.drawText(clockText, x, base, aClockSheen);
+            aClockSheen.setShader(null);
+        }
+        aClockRim.setColor(ambScene >= 0 ? SCENE_RIM[ambScene] : 0x8CFFFFFF);
         c.drawText(clockText, x, base, aClockRim);
     }
 
-    /** "☁ 8°  ·  Cloudy  ·  Rain around 23:00  ·  Air: fair", centered. */
-    private void drawAmbianceWeather(Canvas c, float cx) {
-        HomeData.Weather wx = data.weather;
-        if (!Prefs.weather() || Double.isNaN(wx.temp)) return;
-        String key = data.weatherAt + "|" + Prefs.version + "|" + Ui.language + "|" + clockMinute / 10;
-        if (!key.equals(ambWeatherKey)) {
-            ambWeatherKey = key;
-            StringBuilder sb = new StringBuilder(HomeData.degrees(wx.temp)).append("  ·  ").append(HomeData.condition(wx.code, wx.isDay));
-            String rain = HomeData.rainText(wx), air = HomeData.airText(wx);
-            if (!rain.isEmpty()) sb.append("  ·  ").append(rain);
-            if (!air.isEmpty()) sb.append("  ·  ").append(air);
-            ambWeather = sb.toString();
-        }
-        float size = 38 * k, base = A_WEATHER_BASE * k, gap = 14 * k;
-        String symbol = Symbols.weather(wx.code, wx.isDay);
-        float sw = Symbols.width(getContext(), symbol, size), tw = aWeather.measureText(ambWeather);
-        float left = cx - (sw + gap + tw) / 2;
-        Symbols.draw(getContext(), c, symbol, left + sw / 2, base - Ui.halfCap(aWeather), size, aWeather.getColor());
-        c.drawText(ambWeather, left + sw + gap + tw / 2, base, aWeather);
-    }
-
-    /** The child's age (and a milestone), then the quote of the day in italics, centered. */
-    private void drawAmbianceToday(Canvas c, float cx) {
+    /** Above the dock: the child's age (and a milestone), then the quote of the day, one line each. */
+    private void drawAmbianceToday(Canvas c) {
         long now = System.currentTimeMillis();
-        float top = A_TODAY_TOP * k;
+        float cx = w / 2f, base = (A_DOCK_BOTTOM - 2 * A_DOCK_PAD_Y - A_ICON - 34) * k;
+        if (Prefs.daily()) {
+            String[] q = Daily.quote(now);
+            String key = q[0] + "|" + q[1] + "|" + Ui.language;
+            if (!key.equals(ambQuoteKey)) {
+                ambQuoteKey = key;
+                String text = "« " + q[0] + " »" + (q[1].isEmpty() ? "" : "  — " + q[1]);
+                ambQuote = TextUtils.ellipsize(text, aQuote, 1500 * k, TextUtils.TruncateAt.END).toString();
+            }
+            c.drawText(ambQuote, cx, base, aQuote);
+            base -= 40 * k;
+        }
         int[] age = Daily.age(Prefs.childBirth(), now);
         String name = Prefs.childName();
         if (age != null && !name.isEmpty()) {
             String mark = Daily.milestone(age), line = Daily.ageLine(name, age);
-            c.drawText(mark.isEmpty() ? line : line + "  ·  " + mark, cx, top + Ui.cap(aAge), aAge);
-            top += 50 * k;
+            c.drawText(mark.isEmpty() ? line : line + "  ·  " + mark, cx, base, aToday);
         }
-        if (!Prefs.daily()) return;
-        String[] q = Daily.quote(now);
-        int room = Math.round(1240 * k);
-        String key = q[0] + "|" + q[1] + "|" + room + "|" + aQuote.getColor();
-        if (!key.equals(ambQuoteKey)) {
-            ambQuoteKey = key;
-            String text = "« " + q[0] + " »" + (q[1].isEmpty() ? "" : "  — " + q[1]);
-            ambQuoteLayout = StaticLayout.Builder.obtain(text, 0, text.length(), aQuote, room)
-                    .setAlignment(android.text.Layout.Alignment.ALIGN_CENTER).setMaxLines(2)
-                    .setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(0, 1.1f).setIncludePad(false).build();
-        }
-        c.save();
-        c.translate(cx - room / 2f, top);
-        ambQuoteLayout.draw(c);
-        c.restore();
     }
 
-    // The apps in a frosted-glass gallery
+    // The apps in a glass dock
 
     private void layoutBigShelf(int n) {
-        float gap = A_TILE_GAP * k, pad = A_PAD * k, full = (CONTENT_R - MARGIN) * k - 2 * pad;
-        float tw = Math.min(A_TILE_W * k, (full - Math.max(0, n - 1) * gap) / Math.max(1, n)), th = tw * 9 / 16f;
-        float width = n * tw + Math.max(0, n - 1) * gap, left = (w - width) / 2f;
-        float bottom = A_BOTTOM * k, top = bottom - pad - th;
-        platterRect.set(left - pad, top - pad, left + width + pad, bottom);
-        for (int i = 0; i < n; i++) tileRects[i].set(left + i * (tw + gap), top, left + i * (tw + gap) + tw, top + th);
+        float icon = A_ICON * k, gap = A_ICON_GAP * k, padX = A_DOCK_PAD_X * k, padY = A_DOCK_PAD_Y * k;
+        float room = (CONTENT_R - MARGIN) * k - 2 * padX;
+        if (n * icon + (n - 1) * gap > room) icon = (room - (n - 1) * gap) / n;
+        float width = n * icon + Math.max(0, n - 1) * gap, left = (w - width) / 2f;
+        float bottom = A_DOCK_BOTTOM * k, top = bottom - padY - icon;
+        platterRect.set(left - padX, top - padY, left + width + padX, bottom);
+        for (int i = 0; i < n; i++) tileRects[i].set(left + i * (icon + gap), top, left + i * (icon + gap) + icon, top + icon);
         crispLogos.clear();
         ambTileShaders = new LinearGradient[n];
     }
 
-    /** The gallery's glass: the photo behind it, blurred and tinted light or dark to match, with a thin rim. */
+    /** The dock's glass: the photo behind it, blurred and darkened, with a thin warm rim and a soft shadow. */
     private void drawGallery(Canvas c) {
-        float r = (A_TILE_R + A_PAD) * k;
+        float r = platterRect.height() / 2 * 0.6f;
         tmp.set(platterRect);
-        tmp.offset(0, 16 * k);
-        shadow.setColor(ambBottomLight ? 0x1F000000 : 0x4D000000);
+        tmp.offset(0, 18 * k);
+        shadow.setColor(0x47000000);
         shadows.draw(c, tmp, r, SHADOW_BLUR * k, shadow);
         float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE);
         boolean drawn = false;
@@ -3838,60 +3958,65 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         ambGlass.setShader(null);
         fill.setShader(null);
-        fill.setColor(!drawn ? 0x99101216 : ambBottomLight ? 0x73FFFFFF : 0x52000000);
+        fill.setColor(drawn ? 0x7A1E141C : 0xB3141218);
         c.drawRoundRect(platterRect, r, r, fill);
-        border.setColor(ambBottomLight ? 0xB3FFFFFF : 0x40FFFFFF);
+        border.setColor(0x29FFD2DC);
         c.drawRoundRect(platterRect, r, r, border);
-        if (!ambCredit.isEmpty() && ambFadeAt == 0) c.drawText(ambCredit, CONTENT_R * k, (A_BOTTOM + 30) * k, aCredit);
+        if (!ambCredit.isEmpty() && ambFadeAt == 0) c.drawText(ambCredit, CONTENT_R * k, (A_DOCK_BOTTOM + 30) * k, aCredit);
     }
 
+    private LinearGradient[] ambTileShaders = new LinearGradient[0];
+
     /**
-     * One app in the gallery. At rest: a quiet glass cell with the logo in white (dark on light glass), or the banner
-     * in grey, so the row looks like one set. Focused: it grows, its brand colors come in, with a white ring.
+     * One app in the dock: a rounded square (the brand's colors and logo, or the middle of its banner), a little dim at
+     * rest. Focused: it grows and rises, at full brightness, with a white ring and its name under it.
      */
     private void drawGalleryTile(Canvas c, int i, HomeApps.Item it, float s, float fc) {
-        float r = A_TILE_R * k * s;
+        cell.offset(0, -10 * k * fc);
+        float r = cell.width() * 0.225f;
         if (fc > 0.01f) {
             tmp.set(cell);
-            tmp.offset(0, 12 * k);
+            tmp.offset(0, 14 * k);
             shadowDeep.setColor(Ui.alpha(0xFF000000, 0.4f * fc));
             shadows.draw(c, tmp, r, DEEP_BLUR * k, shadowDeep);
         }
         int[] style = TILE_STYLE.get(it.key);
         if (it.logo != null) {
-            fill.setShader(null);
-            fill.setColor(ambBottomLight ? 0x40FFFFFF : 0x1AFFFFFF);
-            c.drawRoundRect(cell, r, r, fill);
-            if (fc > 0.01f) {
-                if (style != null) {
-                    if (ambTileShaders.length != shelf.size()) ambTileShaders = new LinearGradient[shelf.size()];
-                    if (ambTileShaders[i] == null) {
-                        RectF t = tileRects[i];
-                        ambTileShaders[i] = new LinearGradient(0, t.top, 0, t.bottom, style[0], style[1], Shader.TileMode.CLAMP);
-                    }
-                    tileFill.setShader(ambTileShaders[i]);
-                } else {
-                    tileFill.setShader(null);
-                    tileFill.setColor(0xFF161618);
+            if (style != null) {
+                if (ambTileShaders.length != shelf.size()) ambTileShaders = new LinearGradient[shelf.size()];
+                if (ambTileShaders[i] == null) {
+                    RectF t = tileRects[i];
+                    ambTileShaders[i] = new LinearGradient(0, t.top, 0, t.bottom, style[0], style[1], Shader.TileMode.CLAMP);
                 }
-                tileFill.setAlpha(Math.round(255 * fc));
-                c.drawRoundRect(cell, r, r, tileFill);
+                tileFill.setShader(ambTileShaders[i]);
+            } else {
                 tileFill.setShader(null);
-                tileFill.setAlpha(255);
+                tileFill.setColor(0xFF2A2A30);
             }
-            int colored = style != null ? style[2] : 0;
-            galleryLogo(c, it, s, ambBottomLight ? 2 : 1, 1 - fc);
-            galleryLogo(c, it, s, colored, fc);
+            c.drawRoundRect(cell, r, r, tileFill);
+            tileFill.setShader(null);
+            galleryLogo(c, it, s, style != null ? style[2] : 0, 1);
         } else if (it.tile != null) {
-            if (fc < 0.99f) bannerImage(c, it.tile, r, ambGrey, 1 - fc);
-            if (fc > 0.01f) bannerImage(c, it.tile, r, null, fc);
+            bannerImage(c, it.tile, r, null, 1);
+        } else {
+            fill.setShader(null);
+            fill.setColor(0x24FFFFFF);
+            c.drawRoundRect(cell, r, r, fill);
+        }
+        if (fc < 0.99f) {
+            fill.setShader(null);
+            fill.setColor(Ui.alpha(0xFF000000, 0.18f * (1 - fc)));
+            c.drawRoundRect(cell, r, r, fill);
         }
         if (fc > 0.01f) {
-            float o = 6 * k;
+            float o = 0;
             tmp.set(cell.left - o, cell.top - o, cell.right + o, cell.bottom + o);
             ambRing.setColor(Ui.alpha(0xFFFFFFFF, fc));
-            ambRing.setStrokeWidth(3.5f * k);
-            c.drawRoundRect(tmp, r + o, r + o, ambRing);
+            ambRing.setStrokeWidth(4 * k);
+            c.drawRoundRect(tmp, r, r, ambRing);
+            aLabel.setAlpha(Math.round(255 * fc));
+            c.drawText(it.label == null ? "" : it.label, cell.centerX(), cell.bottom + 40 * k, aLabel);
+            aLabel.setAlpha(255);
         }
     }
 
@@ -3902,14 +4027,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (logo == null) return;
         float scale = s / (1 + grow()), dw = logo.getWidth() * scale, dh = logo.getHeight() * scale;
         tmp.set(cell.centerX() - dw / 2, cell.centerY() - dh / 2, cell.centerX() + dw / 2, cell.centerY() + dh / 2);
-        bitmapPaint.setColorFilter(mode == 1 ? whiteLogo : mode == 2 && it.logoDark == null ? inkLogo : null);
+        bitmapPaint.setColorFilter(mode == 1 ? whiteLogo : null);
         bitmapPaint.setAlpha(Math.round(255 * Math.min(1, alpha)));
         c.drawBitmap(logo, null, tmp, bitmapPaint);
         bitmapPaint.setColorFilter(null);
         bitmapPaint.setAlpha(255);
     }
 
-    /** An app's banner cropped to the cell, through a color filter (grey) or none, at an opacity. */
+    /** An app's banner cropped to the cell (its middle), through a color filter or none, at an opacity. */
     private void bannerImage(Canvas c, Bitmap image, float r, android.graphics.ColorFilter filter, float alpha) {
         int a = Math.round(255 * Math.min(1, alpha));
         bitmapPaint.setColorFilter(filter);
