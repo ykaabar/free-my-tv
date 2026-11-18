@@ -40,5 +40,24 @@ public class FireHomeService extends AccessibilityService {
         }
     }
 
+    /**
+     * Bound in the first minutes after the stick starts: Amazon's home came up before this service could see it, so
+     * nothing else can be in front. Ours goes on top once (as couch-tv's FireWatch does), unless it keeps crashing.
+     */
+    @Override protected void onServiceConnected() {
+        if (SystemClock.elapsedRealtime() > BOOT_WINDOW_MS || Watchdog.crashedTooOften(this)) return;
+        AppLog.w("fire home: bound just after a restart, opening Free My TV");
+        launchedAt = SystemClock.uptimeMillis();
+        try {
+            startActivity(new Intent(Intent.ACTION_MAIN)
+                    .setClassName(HomeMode.PKG, HomeMode.PKG + ".HomeActivity")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_ANIMATION));
+        } catch (RuntimeException ex) {
+            AppLog.w("fire home: " + ex.getMessage());
+        }
+    }
+
+    private static final long BOOT_WINDOW_MS = 3 * 60_000L;
+
     @Override public void onInterrupt() {}
 }

@@ -2,3 +2,6 @@ The five scenes (night, golden, water, fog, dawn), their cut-outs (-fg.webp) and
 couch-tv (github.com/Seagey/couch-tv, MIT licence, Copyright (c) 2026 Seagey). They were made for couch-tv with an AI
 image model from text only (no source photo, not real places), and its authors say they may be used however you like.
 The clock's layout over each scene (positions, sizes, glass, rim) follows couch-tv's tv-home/web/app.css.
+
+water-fg.webp is ours (not couch-tv's, whose Waterline scene has no cut-out): the sky of scene-water.jpg cut away
+by colour from the top edge down, so its peaks cross the clock like the other scenes'. Same terms as the scene.

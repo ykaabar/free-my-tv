@@ -3418,7 +3418,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // date top, clock top, size, left, dark ink, fill, has a cut-out
         {96, 150, 400, -1, 0, 1, 1},
         {106, 152, 390, -1, 0, 0, 1},
-        {216, 268, 420, -1, 0, 0, 0},
+        {96, 150, 400, -1, 0, 0, 1},     // our own cut-out: the clock behind the snowy peaks
         {116, 172, 470, 96, 1, 2, 1},
         {176, 230, 400, -1, 0, 0, 1},
     };

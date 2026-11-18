@@ -133,7 +133,9 @@ connection to 127.0.0.1 (it closes it at once), so `HomeMode.FIRE` uses no ADB o
 `DEBLOAT` (`fire/restaurer-fire.bat` undoes both). The switch on the TV then turns `FireHomeService` on or off by
 itself: an accessibility service that opens our home screen when Amazon's launcher comes to the front (a short flash
 of Amazon's home on each Home press). Fire OS holds back JobScheduler jobs of sideloaded apps, so immediate switches run
-in `ModeService`. Fire OS keeps only warnings in the log (`AppLog` logs at that level). The sleep timer needs the local
+in `ModeService`; the boot and update broadcasts put the service back at once (`HomeMode.fireRestore`), and the
+service opens our home once when it binds in the first minutes after a restart (Amazon's home came up before it could
+see it). Fire OS keeps only warnings in the log (`AppLog` logs at that level). The sleep timer needs the local
 ADB, so it doesn't work there. Keep the `.bat` files in step with `DEBLOAT`.
 
 LG and Samsung: the web app above. Other TVs that don't run Google TV or Android TV: the way is a Google TV streamer on

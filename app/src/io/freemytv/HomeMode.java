@@ -268,6 +268,17 @@ final class HomeMode {
         }
     }
 
+    /**
+     * Fire TV, right from the boot or update broadcast (Fire OS may hold back the job that would do it later): the Home
+     * button service back on if Free My TV mode is on. Only a settings write, so it runs here, at once.
+     */
+    static void fireRestore(Context c) {
+        if (!FIRE) return;
+        synchronized (RUN) {
+            fireVerify(c, state(c));
+        }
+    }
+
     /** After an update of this app (Android turns its accessibility services off then): the service back on. */
     private static void fireVerify(Context c, JSONObject s) {
         if (!FREE.equals(s.optString("mode")) || s.optBoolean("homeReverted") || !fireAllowed(c)) return;

@@ -9,8 +9,10 @@ public class HomeReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
+            HomeMode.fireRestore(context);
             HomeMode.bootCheck(context);
         } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            HomeMode.fireRestore(context);
             HomeMode.verify(context);   // app updated: complete Free My TV mode if something is missing
             HomeMode.ensureRemoteService(context, 3_000);
         } else if (Sleep.ACTION.equals(action)) {
