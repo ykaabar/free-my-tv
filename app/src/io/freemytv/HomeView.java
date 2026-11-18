@@ -319,6 +319,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             this.kind = kind;
         }
 
+        /**
+         * Ambiance: the top fades without an offscreen copy of the whole screen (each part fades on its own). That copy
+         * is what made the drawer stutter on a Fire TV stick, where layers aren't cached on the GPU.
+         */
+        @Override public boolean hasOverlappingRendering() {
+            return !(amb && kind == HERO);
+        }
+
         @Override protected void onDraw(Canvas c) {
             if (labelPaint == null) return;
             c.translate(-getLeft(), -getTop());
@@ -941,8 +949,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** Day or night right now (from the sun at your location); `animate`: with the transition. */
     private void checkNight(boolean animate) {
-        // Ambiance: the corner buttons follow the photo (light glass on a light photo).
-        boolean want = amb ? !ambTopLight : data.isNight(System.currentTimeMillis());
+        // Ambiance: dark glass everywhere (buttons, drawer), as couch-tv's scenes.
+        boolean want = amb || data.isNight(System.currentTimeMillis());
         if (want == nightTarget) return;
         nightTarget = want;
         if (animate && running) {
@@ -3446,6 +3454,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private final Paint ambRing = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint ambGlass = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint ambFgPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final android.graphics.Rect ambSrc = new android.graphics.Rect();
+    private final RectF ambDst = new RectF();
+    /** Each banner's background color (its left edge), so the whole banner fits in a square on that color. */
+    private final java.util.WeakHashMap<Bitmap, Integer> bannerColors = new java.util.WeakHashMap<>();
     private final Matrix ambMatrix = new Matrix();
     private Shader ambShade, ambFallback, ambSheen;
     private String ambSheenKey = "", ambQuote = "", ambQuoteKey = "", ambWeather = "", ambWeatherKey = "";
@@ -3774,7 +3786,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambFallback = new LinearGradient(0, 0, 0, h, new int[] {0xFF22344A, 0xFF4A5560, 0xFF6E6152, 0xFF262624, 0xFF0F1113},
                     new float[] {0, 0.38f, 0.62f, 0.82f, 1}, Shader.TileMode.CLAMP);
         }
-        android.graphics.ColorFilter v = veil(Math.max(0.45f * Ui.clamp(drawer.value), ambDim()), 0xFF000000);
+        android.graphics.ColorFilter v = veil(Math.max(0.62f * Ui.clamp(drawer.value), ambDim()), 0xFF000000);
         float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE);
         if (ambNow == null || (e < 1 && ambOld == null)) {
             fill.setColorFilter(v);
@@ -3816,10 +3828,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         drawAmbianceDate(c, x, at[0] * k, left);
         drawGlassClock(c, at, left);
         if (ambFg != null) {
-            // The scenery in front of the clock: the peaks, the volcano and the hills cross the digits.
+            // The scenery in front of the clock: the peaks, the volcano and the hills cross the digits. Only the clock's
+            // band is drawn (elsewhere the cut-out is the photo itself): a third of the work on every frame.
+            float top = at[1] * k, bottom = (at[1] + 0.82f * at[2]) * k;
+            float sy = (float) ambFg.getHeight() / h;
+            ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
+            ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
             ambFgPaint.setColorFilter(ambDim() > 0 ? veil(ambDim(), 0xFF000000) : null);
             ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE)));
-            c.drawBitmap(ambFg, 0, 0, ambFgPaint);
+            c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
         }
         drawAmbianceToday(c);
     }
@@ -3997,7 +4014,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             tileFill.setShader(null);
             galleryLogo(c, it, s, style != null ? style[2] : 0, 1);
         } else if (it.tile != null) {
-            bannerImage(c, it.tile, r, null, 1);
+            bannerSquare(c, it.tile, r);
         } else {
             fill.setShader(null);
             fill.setColor(0x24FFFFFF);
@@ -4032,6 +4049,26 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         c.drawBitmap(logo, null, tmp, bitmapPaint);
         bitmapPaint.setColorFilter(null);
         bitmapPaint.setAlpha(255);
+    }
+
+    /** An app's 16:9 banner whole in a square: the square takes the banner's own background color around it. */
+    private void bannerSquare(Canvas c, Bitmap banner, float r) {
+        Integer color = bannerColors.get(banner);
+        if (color == null) {
+            int px = 0;
+            try {
+                px = banner.getPixel(Math.min(2, banner.getWidth() - 1), banner.getHeight() / 2);
+            } catch (IllegalStateException ignored) {   // a hardware bitmap can't be read: neutral grey
+            }
+            color = android.graphics.Color.alpha(px) < 200 ? 0xFF2A2A30 : px | 0xFF000000;
+            bannerColors.put(banner, color);
+        }
+        fill.setShader(null);
+        fill.setColor(color);
+        c.drawRoundRect(cell, r, r, fill);
+        float bw = cell.width() * 0.94f, bh = bw * banner.getHeight() / Math.max(1, banner.getWidth());
+        tmp.set(cell.centerX() - bw / 2, cell.centerY() - bh / 2, cell.centerX() + bw / 2, cell.centerY() + bh / 2);
+        c.drawBitmap(banner, null, tmp, bitmapPaint);
     }
 
     /** An app's banner cropped to the cell (its middle), through a color filter or none, at an opacity. */
