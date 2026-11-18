@@ -7,6 +7,11 @@ final class AppLog {
     private AppLog() {}
 
     static void w(String message) {
-        Log.i("FreeMyTV", message);
+        // Warning level: Fire OS keeps only warnings and errors from apps in the log.
+        Log.w("FreeMyTV", message);
+    }
+
+    static void w(String message, Throwable t) {
+        Log.w("FreeMyTV", message, t);
     }
 }

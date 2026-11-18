@@ -218,6 +218,7 @@ final class French {
             case "debugging is off on the TV (port 5555 closed)": return "le débogage est désactivé sur la TV (port 5555 fermé)";
             case "debugging permission wasn't accepted on the TV": return "l'autorisation de débogage n'a pas été acceptée sur la TV";
             case "the TV's ADB didn't respond": return "l'ADB de la TV n'a pas répondu";
+            case "the TV's ADB closed the connection": return "l'ADB de la TV a coupé la connexion";
             case "the TV asked for TLS (wireless debugging); use USB debugging": return "la TV demande TLS (débogage sans fil) ; utilisez le débogage USB";
             case "unexpected reply from ADB": return "réponse inattendue d'ADB";
             case "the TV rejected the app's key": return "la TV a refusé la clé de l'appli";

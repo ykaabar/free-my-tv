@@ -91,6 +91,8 @@ final class Adb implements Closeable {
                     m = adb.read();
                 } catch (SocketTimeoutException e) {
                     throw new IOException(offeredKey ? "debugging permission wasn't accepted on the TV" : "the TV's ADB didn't respond");
+                } catch (java.io.EOFException e) {
+                    throw new IOException("the TV's ADB closed the connection");
                 }
                 if (m.command == CNXN) {
                     s.setSoTimeout(20_000);

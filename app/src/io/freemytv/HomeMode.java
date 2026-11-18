@@ -333,7 +333,9 @@ final class HomeMode {
             adb.shell("am start -a android.intent.action.MAIN -c android.intent.category.HOME");
             ModeJob.schedule(c, ModeJob.MEMORY, FREE, 120_000);
         } catch (Exception e) {
-            done(c, Ui.tr("Não deu para ligar o Free My TV: ", "Couldn't turn on Free My TV: ") + (Ui.ru ? Russian.text(e.getMessage() == null ? "" : e.getMessage()) : Ui.fr ? French.text(e.getMessage() == null ? "" : e.getMessage()) : e.getMessage()));
+            AppLog.w("switch to Free My TV failed", e);
+            String why = e.getMessage() == null || e.getMessage().isEmpty() ? e.getClass().getSimpleName() : e.getMessage();
+            done(c, Ui.tr("Não deu para ligar o Free My TV: ", "Couldn't turn on Free My TV: ") + (Ui.ru ? Russian.text(why) : Ui.fr ? French.text(why) : why));
         }
     }
 

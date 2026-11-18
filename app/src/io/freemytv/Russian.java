@@ -225,6 +225,7 @@ final class Russian {
             case "debugging is off on the TV (port 5555 closed)": return "отладка на телевизоре выключена (порт 5555 закрыт)";
             case "debugging permission wasn't accepted on the TV": return "на телевизоре не разрешена отладка";
             case "the TV's ADB didn't respond": return "ADB телевизора не ответил";
+            case "the TV's ADB closed the connection": return "ADB телевизора закрыл соединение";
             case "the TV asked for TLS (wireless debugging); use USB debugging": return "телевизор запросил TLS (беспроводная отладка); используйте отладку по USB";
             case "unexpected reply from ADB": return "неожиданный ответ ADB";
             case "the TV rejected the app's key": return "телевизор отклонил ключ приложения";
