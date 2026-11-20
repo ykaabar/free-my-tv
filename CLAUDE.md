@@ -177,7 +177,8 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   older `#B0…` links through sharedstreams; both undocumented by Apple). The weather takes the room the others leave;
   when the row is too full the photo card goes first, then *Today*.
 - *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`): time of day = three Unsplash photos in
-  `assets/scenes` (night 8 pm–5 am, dawn 5–9 am, day 9 am–8 pm; `HomeView.sceneFor`, credits in `CREDITS.txt`), each
+  `assets/scenes` (by the sun where the TV is: dawn from 45 min before sunrise to 1 h 30 after, day until 30 min
+  after sunset, then night; `HomeView.sceneFor`, credits in `CREDITS.txt`), each
   with a blurred `-glass.jpg` for the clock; mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
   clock is Antonio Light (`Ui.clock`) in glass (after couch-tv, MIT), placed per photo in `SCENE_AT`; the date and
   weather sit above it, today's line (or tonight's picks, with the sparkles button) above the apps, which use the glass

@@ -3592,10 +3592,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         return "scene:" + SCENES[sceneFor()];
     }
 
-    /** The photo for the hour: night from 8 pm to 5 am, dawn until 9 am, the lake in the day. */
+    /**
+     * The photo for the sun where the TV is (today's sunrise and sunset, from the weather): dawn from 45 min before
+     * sunrise to 1 h 30 after, the lake until 30 min after sunset, then the night. Without weather yet, 7 am and 6 pm.
+     */
     private int sceneFor() {
-        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        return h >= 20 || h < 5 ? 0 : h < 9 ? 1 : 2;
+        long t = Shaders.timeOfDay(System.currentTimeMillis(), 0), min = 60_000L;
+        HomeData.Weather wx = data.weather;
+        long rise = Shaders.timeOfDay(wx.sunrise, 7 * 60 * min), set = Shaders.timeOfDay(wx.sunset, 18 * 60 * min);
+        if (t < rise - 45 * min || t >= set + 30 * min) return 0;
+        return t < rise + 90 * min ? 1 : 2;
     }
 
     /** Time for another background: the scene (or the source) changed, or a photo has been shown for a while. */
