@@ -66,15 +66,18 @@ final class Recs {
     static final String[] PERIOD_LABEL_FR = {"CE MATIN", "CET APRÈS-MIDI", "CE SOIR"};
     /** Service name on TMDB (part of the name, lowercase) → TV app (HomeApps key, package). */
     private static final String[][] SERVICES = {
+        // TMDB's provider name (lower case, contained), our key, the app's packages (Google TV | Fire TV | other).
         {"netflix", "netflix", "com.netflix.ninja"},
-        {"prime video", "prime", "com.amazon.amazonvideo.livingroom"},
+        {"prime video", "prime", "com.amazon.amazonvideo.livingroom|com.amazon.firebat|com.amazon.avod.thirdpartyclient"},
         {"disney", "disney", "com.disney.disneyplus"},
         {"hulu", "hulu", "com.hulu.livingroomplus"},
         {"paramount", "paramount", "com.cbs.ott"},
         {"peacock", "peacock", "com.peacocktv.peacockandroid"},
         {"globoplay", "globoplay", "com.globo.globotv"},
         {"max", "max", "com.wbd.stream"},
-        {"apple tv", "appletv", "com.apple.atve.androidtv.appletv"},
+        {"apple tv", "appletv", "com.apple.atve.androidtv.appletv|com.apple.atve.amazon.appletv"},
+        {"canal+", "canal", "com.canal.android.canal|com.canal.android.canalplus"},
+        {"tf1", "tf1", "fr.tf1.mytf1|fr.tf1.mytf1.tv"},
     };
     private static final Map<String, String> SERVICE_NAME = new HashMap<>();
     static {
@@ -87,6 +90,8 @@ final class Recs {
         SERVICE_NAME.put("globoplay", "Globoplay");
         SERVICE_NAME.put("max", "Max");
         SERVICE_NAME.put("appletv", "Apple TV");
+        SERVICE_NAME.put("canal", "CANAL+");
+        SERVICE_NAME.put("tf1", "TF1+");
     }
     /** Country for "what streams where" (config.properties "tmdb_region", e.g. US, GB, BR). */
     private static final String REGION = Config.TMDB_REGION.trim().toUpperCase(Locale.ROOT);
@@ -381,7 +386,7 @@ final class Recs {
         for (int i = 0; i < providers.length(); i++) {
             JSONObject o = providers.getJSONObject(i);
             String[] s = service(o.optString("provider_name"));
-            if (s != null && installed(s[2])) services.put(o.getInt("provider_id"), s);
+            if (s != null && app(s) != null) services.put(o.getInt("provider_id"), s);
         }
         if (services.isEmpty()) throw new IOException("none of the TV's streaming services are on TMDB");
         StringBuilder ids = new StringBuilder();
@@ -493,9 +498,9 @@ final class Recs {
         JSONArray flat = br == null ? null : br.optJSONArray("flatrate");
         for (int i = 0; flat != null && i < flat.length() && p.app == null; i++) {
             String[] s = service(flat.getJSONObject(i).optString("provider_name"));
-            if (s != null && installed(s[2])) {
+            if (s != null && app(s) != null) {
                 p.app = s[1];
-                p.pkg = s[2];
+                p.pkg = app(s);
             }
         }
         if (p.app != null) parts.add(SERVICE_NAME.get(p.app));
@@ -569,8 +574,19 @@ final class Recs {
     private static String[] service(String name) {
         String n = name.toLowerCase(Locale.ROOT);
         for (String[] s : SERVICES) {
-            if (s[0].equals("max") ? n.matches(".*\\bmax\\b.*") : n.contains(s[0])) return s;
+            boolean match;
+            if (s[0].equals("max")) match = n.matches(".*\\bmax\\b.*");
+            // Apple TV+ only, not Apple's store (TMDB lists "Apple TV" for rentals and purchases too)
+            else if (s[0].equals("apple tv")) match = n.contains("apple tv") && (n.contains("plus") || n.contains("+"));
+            else match = n.contains(s[0]);
+            if (match) return s;
         }
+        return null;
+    }
+
+    /** The service's app installed on this TV (its Google TV or its Fire TV package), or null. */
+    private String app(String[] service) {
+        for (String pkg : service[2].split("\\|")) if (installed(pkg)) return pkg;
         return null;
     }
 
@@ -580,7 +596,10 @@ final class Recs {
 
     private long sourceStamp() {
         long stamp = Config.TMDB_KEY.hashCode() * 31L + REGION.hashCode();
-        for (String[] service : SERVICES) stamp = stamp * 31L + (installed(service[2]) ? service[2].hashCode() : 0);
+        for (String[] service : SERVICES) {
+            String pkg = app(service);
+            stamp = stamp * 31L + (pkg != null ? pkg.hashCode() : 0);
+        }
         return stamp;
     }
 
