@@ -750,7 +750,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean photoFading = tickPhoto(up);
         boolean ambFading = tickAmbiance(up);
         ambLift.target = ambPicks() ? 1 : 0;
-        if (tickWeather(dt)) weatherLayer.invalidate();
+        boolean weatherMoving = tickWeather(dt);
+        if (weatherMoving) weatherLayer.invalidate();
         heroMoving |= ambLift.step(dt) | (ambFading && ambFg != null);   // the cut-out fades with the light
 
         if (drawerMoving || sheetMoving || motionDirty) updateMotion();
@@ -777,8 +778,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             if (!picksOn() || amb) heroLayer.invalidate();
         }
 
-        // Busy: something is moving, or the sheet or the drawer is open.
-        boolean busy = tilesMoving || statusMoving || heroMoving || drawerItemsMoving || gridMoving || drawerMoving
+        // Busy: something is moving (rain and snow too: idle, frames come once a second and they'd jump), or the
+        // sheet or the drawer is open.
+        boolean busy = weatherMoving || tilesMoving || statusMoving || heroMoving || drawerItemsMoving || gridMoving || drawerMoving
                 || sheetMoving || toastFading || heroFading || bgFading || ambFading || nightMoving || sheetOpen || sheet.value > 0.001f
                 || drawerOpen || drawer.value > 0.001f || toast != null || !toasts.isEmpty();
         idle = !busy;
