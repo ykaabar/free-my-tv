@@ -52,6 +52,10 @@ final class Config {
     static final String TMDB_KEY = "$(prop tmdb_key '')";
     static final String UNSPLASH_KEY = "$(prop unsplash_key '')";
     static final String ICLOUD_ALBUM = "$(prop icloud_album '')";
+    static final String TUYA_ID = "$(prop tuya_id '')";
+    static final String TUYA_KEY = "$(prop tuya_key '')";
+    static final String TUYA_IP = "$(prop tuya_ip '')";
+    static final String TUYA_VERSION = "$(prop tuya_version '')";
     static final String TMDB_REGION = "$(prop tmdb_region US)";
     static final String LATITUDE = "$LAT";
     static final String LONGITUDE = "$LON";

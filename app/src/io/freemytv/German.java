@@ -168,6 +168,13 @@ final class German {
             case "Ambience · time of day": return "Ambiente · nach Tageszeit";
             case "Ambience · mountains": return "Ambiente · Berge";
             case "Ambience · my photos": return "Ambiente · meine Fotos";
+            case "LED strip": return "LED-Streifen";
+            case "LED strip: ": return "LED-Streifen: ";
+            case "The LED strip isn't answering: ": return "Der LED-Streifen antwortet nicht: ";
+            case "Dim": return "Gedimmt";
+            case "Cinema": return "Kino";
+            case "White": return "Weiß";
+            case "Switched off": return "Aus";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";
             case "None": return "Keine";

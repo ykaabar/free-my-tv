@@ -61,6 +61,8 @@ final class HomeApps {
     static final int SLEEP = 8;
     /** Ambiance's "Tonight" button: shows or hides the picks. */
     static final int PICKS = 9;
+    /** The LED strip's button (Lights): goes through its moods. */
+    static final int LIGHTS = 10;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
     static final int TILE_W = 384, TILE_H = 216;
 

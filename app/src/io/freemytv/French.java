@@ -160,6 +160,13 @@ final class French {
             case "Ambience · time of day": return "Ambiance · selon l'heure";
             case "Ambience · mountains": return "Ambiance · montagnes";
             case "Ambience · my photos": return "Ambiance · mes photos";
+            case "LED strip": return "Ruban LED";
+            case "LED strip: ": return "Ruban LED : ";
+            case "The LED strip isn't answering: ": return "Le ruban LED ne répond pas : ";
+            case "Dim": return "Tamisé";
+            case "Cinema": return "Cinéma";
+            case "White": return "Blanc";
+            case "Switched off": return "Éteint";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";
             case "None": return "Aucun";

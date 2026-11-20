@@ -167,6 +167,13 @@ final class Russian {
             case "Ambience · time of day": return "Атмосфера · по времени суток";
             case "Ambience · mountains": return "Атмосфера · горы";
             case "Ambience · my photos": return "Атмосфера · мои фото";
+            case "LED strip": return "LED-лента";
+            case "LED strip: ": return "LED-лента: ";
+            case "The LED strip isn't answering: ": return "LED-лента не отвечает: ";
+            case "Dim": return "Приглушённый";
+            case "Cinema": return "Кино";
+            case "White": return "Белый";
+            case "Switched off": return "Выключена";
             case "Tonight on": return "Сегодня вечером на";
             case "Tonight: apps": return "Сегодня вечером: приложения";
             case "None": return "Нет";

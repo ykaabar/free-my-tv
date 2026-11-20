@@ -59,6 +59,10 @@ jobs:
           TMDB_KEY: ${{ secrets.TMDB_KEY }}
           UNSPLASH_KEY: ${{ secrets.UNSPLASH_KEY }}
           ICLOUD_ALBUM: ${{ secrets.ICLOUD_ALBUM }}
+          TUYA_ID: ${{ secrets.TUYA_ID }}
+          TUYA_KEY: ${{ secrets.TUYA_KEY }}
+          TUYA_IP: ${{ secrets.TUYA_IP }}
+          TUYA_VERSION: ${{ secrets.TUYA_VERSION }}
           CITY: ${{ inputs.city }}
           LATITUDE: ${{ inputs.latitude }}
           LONGITUDE: ${{ inputs.longitude }}
@@ -71,6 +75,10 @@ jobs:
           tmdb_key=${TMDB_KEY}
           unsplash_key=${UNSPLASH_KEY}
           icloud_album=${ICLOUD_ALBUM}
+          tuya_id=${TUYA_ID}
+          tuya_key=${TUYA_KEY}
+          tuya_ip=${TUYA_IP}
+          tuya_version=${TUYA_VERSION}
           tmdb_region=${REGION}
           latitude=${LATITUDE}
           longitude=${LONGITUDE}

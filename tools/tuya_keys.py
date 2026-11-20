@@ -74,7 +74,7 @@ def main():
     found = {}
     try:
         for ip, d in tinytuya.deviceScan(verbose=False, maxretry=8).items():
-            found[d.get("gwId") or d.get("id")] = (ip, str(d.get("version", "")))
+            found[d.get("gwId") or d.get("id")] = (d.get("ip") or ip, str(d.get("version") or d.get("ver") or ""))
     except Exception as e:
         print("Couldn't scan the Wi-Fi: " + str(e))
 

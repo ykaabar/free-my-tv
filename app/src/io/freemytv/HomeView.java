@@ -143,8 +143,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private int widgetIndex;    // with TalkBack on, the drawer's weather (0) or quotes (1) card can take the focus
     private List<Recs.Pick> cards = new ArrayList<>();
     // Three tabs, then up to four round buttons (sleep timer, live TV, inputs, settings).
-    private final Spring[] topFocus = new Spring[7];
-    private final RectF[] topRects = new RectF[7];
+    private final Spring[] topFocus = new Spring[10];   // 3 tabs, up to 7 buttons
+    private final RectF[] topRects = new RectF[10];
     private final Spring[] cardFocus = new Spring[3];
     /** How wide each card is: 1 = the wide one (the focused card), 0 = tall. They always add up to one wide card. */
     private final Spring[] cardWide = new Spring[3];
@@ -523,6 +523,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         lightButtons.clear();
         lightButtons.add(HomeApps.action(HomeApps.SLEEP, "sleep", Ui.tr("Timer", "Sleep timer", "Temporizador"), "bedtime"));
         if (amb && picksOn()) lightButtons.add(HomeApps.action(HomeApps.PICKS, "picks", Ui.tr("Hoje à noite", "Tonight", "Esta noche"), "sparkles"));
+        if (Lights.configured()) lightButtons.add(HomeApps.action(HomeApps.LIGHTS, "lights", Ui.tr("Fita de LED", "LED strip", "Tira LED"), "lightbulb"));
         if (!Prefs.kidMode() && !HomeMode.FIRE) {   // a Fire TV stick has no tuner and no HDMI inputs
             lightButtons.add(HomeApps.action(HomeApps.LIVE_TV, "live", Ui.tr("TV aberta", "Live TV"), "live_tv"));
             lightButtons.add(HomeApps.action(HomeApps.INPUTS, "inputs", Ui.tr("Entradas HDMI", "HDMI Inputs"), "hdmi"));
@@ -532,6 +533,19 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** The sleep button's name: "Sleep timer", or what's left ("Standby in 27 min"). */
+    /** "LED strip · Dim": built once per mood, not on every frame. */
+    private String lightLabel() {
+        int mood = Lights.mood(getContext());
+        if (mood != lightLabelMood || lightLabelText == null) {
+            lightLabelMood = mood;
+            lightLabelText = Ui.tr("Fita de LED", "LED strip", "Tira LED") + " · " + Lights.name(mood);
+        }
+        return lightLabelText;
+    }
+
+    private int lightLabelMood = -1;
+    private String lightLabelText;
+
     private String sleepLabel() {
         int left = Sleep.minutesLeft(getContext());
         return left == 0 ? Ui.tr("Timer", "Sleep timer", "Temporizador")
@@ -2473,6 +2487,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             heroLayer.invalidate();
             return;
         }
+        if (it.kind == HomeApps.LIGHTS) {
+            int mood = Lights.next(getContext(), error -> {
+                if (error != null) showToast(Ui.tr("A fita de LED não responde: ", "The LED strip isn't answering: ",
+                        "La tira LED no responde: ") + error);
+            });
+            showToast(Ui.tr("Fita de LED: ", "LED strip: ", "Tira LED: ") + Lights.name(mood));
+            statusDirty = true;
+            heroLayer.invalidate();
+            return;
+        }
         if (it.kind == HomeApps.SLEEP) {
             int minutes = Sleep.cycle(getContext());
             showToast(minutes == 0 ? Ui.tr("Timer desligado.", "Sleep timer off.", "Temporizador apagado.")
@@ -3304,7 +3328,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         for (int i = 0; i < lightButtons.size(); i++) {
             RectF r = topRects[3 + i];
             boolean sleeping = (lightButtons.get(i).kind == HomeApps.SLEEP && Sleep.at(getContext()) != 0)
-                    || (lightButtons.get(i).kind == HomeApps.PICKS && Prefs.ambiancePicks());   // on: orange, like a timer
+                    || (lightButtons.get(i).kind == HomeApps.PICKS && Prefs.ambiancePicks())   // on: orange, like a timer
+                    || (lightButtons.get(i).kind == HomeApps.LIGHTS && Lights.mood(getContext()) != Lights.OFF);
             float f = Ui.clamp(topFocus[3 + i].value), s = 1 + 0.1f * f, rad = r.width() / 2 * s;
             cell.set(r.centerX() - rad, r.centerY() - rad, r.centerX() + rad, r.centerY() + rad);
             tmp.set(cell);
@@ -3322,7 +3347,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Symbols.draw(getContext(), c, lightButtons.get(i).symbol, cell.centerX(), cell.centerY(), 27 * k * s,
                     sleeping ? 0xFFFF9F0A : blend(tone(L_INK, 0xEBFFFFFF), L_INK, f));
             if (f > 0.01f) {
-                String label = lightButtons.get(i).kind == HomeApps.SLEEP ? sleepLabel() : lightButtons.get(i).label;
+                String label = lightButtons.get(i).kind == HomeApps.SLEEP ? sleepLabel()
+                        : lightButtons.get(i).kind == HomeApps.LIGHTS ? lightLabel() : lightButtons.get(i).label;
                 float half = lTip.measureText(label) / 2;
                 float x = Math.min(r.centerX(), CONTENT_R * k - half);
                 lTip.setAlpha(Math.round(255 * f));

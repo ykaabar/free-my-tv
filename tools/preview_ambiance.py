@@ -31,9 +31,13 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
     d=ImageDraw.Draw(im); fd=ImageFont.truetype(inter,34)
     full=date+"     "+wx; dw=d.textlength(full,font=fd); dx= left if left>=0 else (W-dw)/2
     d.text((dx,dt+30),full,font=fd,fill=(22,32,29) if dark else (255,255,255),anchor="ls")
-    # corner buttons (sleep, tonight, settings): 68 px circles, centre y 103, right edge 1840
-    for i in range(3):
+    # corner buttons on the Fire TV (sleep, tonight, the LED strip once tuya_* is set, settings): 68 px circles,
+    # centre y 103, right edge 1840; tonight and a lit strip in orange (HomeView.drawLightButtons)
+    for i,(sym,on) in enumerate([("settings",0),("lightbulb",1),("sparkles",picks),("bedtime",0)]):
         cx=1840-34-i*92; d.ellipse((cx-34,69,cx+34,137),fill=(30,30,36,150),outline=(255,255,255,60))
+        ic=Image.open(A+"symbols/"+sym+".png").convert("RGBA"); ic=ic.resize((30,int(30*ic.height/ic.width)))
+        tint=Image.new("RGBA",ic.size,(255,159,10,255) if on else (235,235,235,255)); tint.putalpha(ic.getchannel("A"))
+        im.alpha_composite(tint,(int(cx-ic.width/2),int(103-ic.height/2))); d=ImageDraw.Draw(im)
     # the glass row: platter top 814, tiles 126 high, gap 48, pad 40, max 270 wide
     n=len(APPS); full_w=1760; tw2=min(270,(full_w-(n-1)*48)/n); width=n*tw2+(n-1)*48; L=(W-width)/2
     panel=(int(L-40),814,int(L+width+40),814+126+80)

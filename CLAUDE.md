@@ -189,6 +189,10 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   service's own list (`Recs.forApp`, from `byApp`), the mix of them all for any other app.
 - Picks: the focused card is the wide one and the background follows it; holding OK on a card plays its trailer
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
+- The light button (`Lights`, over `Tuya`: protocols 3.3 to 3.5 on TCP 6668, no library) drives a Tuya LED strip on
+  the local network through four moods (off, dim, cinema, white); it shows only when `tuya_id`, `tuya_key` and
+  `tuya_ip` are set. `tools/tuya_keys.py` finds them (QR login with the Smart Life app, then a scan of the Wi-Fi); the
+  local key follows the TMDB key's rules. The first answer tells the newer data points (20-24) from the older (1-5).
 - The moon button is the sleep timer (`Sleep`): 30/60/90 min, an exact alarm wakes `HomeReceiver`, which presses
   Sleep (then Power if still awake) through the local ADB. The kid profile (`Prefs.kidMode`, a 4-digit code) shows
   only its own shelf (`kidShelf`), no picks, drawer or All Apps; the gear asks for the code. `PhotosActivity` is the
