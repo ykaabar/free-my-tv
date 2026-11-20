@@ -122,6 +122,19 @@ final class Prefs {
     /** Ambiance: tonight's picks over the apps (the sparkles button in the corner turns them on and off). */
     static boolean ambiancePicks() { return sp().getBoolean("ambiancePicks", false); }
     static void setAmbiancePicks(boolean on) { put("ambiancePicks", on); }
+
+    /** "Tonight" leaves out the services turned off here (our keys, e.g. "netflix": installed, no subscription). */
+    static boolean pickApp(String key) {
+        if (app == null || key == null) return true;
+        return !("," + sp().getString("picksOff", "") + ",").contains("," + key + ",");
+    }
+
+    static void setPickApp(String key, boolean on) {
+        List<String> off = new ArrayList<>();
+        for (String k : sp().getString("picksOff", "").split(",")) if (!k.isEmpty() && !k.equals(key)) off.add(k);
+        if (!on) off.add(key);
+        put("picksOff", String.join(",", off));
+    }
     static void setDaily(boolean on) { put("daily", on); }
 
     /** The age counter: a first name and a "yyyy-MM-dd" birth date, set on the TV ("" = off). Only on the TV. */

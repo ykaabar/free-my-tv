@@ -113,7 +113,7 @@ public class SettingsActivity extends Activity {
     }
 
     static final class SettingsView extends View implements Choreographer.FrameCallback {
-        private static final int MAIN = 0, HOME_CHOICE = 1, HOME_SETTINGS = 2, REMOTE_KEYS = 3, PICKER = 4, SHELF_EDIT = 5;
+        private static final int MAIN = 0, HOME_CHOICE = 1, HOME_SETTINGS = 2, REMOTE_KEYS = 3, PICKER = 4, SHELF_EDIT = 5, PICK_APPS = 6;
         private static final float LIST_ROW_H = 68, LIST_ROW_GAP = 6;
         private static final int PICK_VISIBLE = 9;
         private static final float LIST_X = 1000, LIST_R = 1824, LIST_TOP = 186, ROW_H = 74, ROW_GAP = 8, CHOICE_H = 104;
@@ -122,7 +122,7 @@ public class SettingsActivity extends Activity {
         private final SettingsActivity activity;
         private final Scene scene = new Scene();
         private final Handler handler = new Handler(Looper.getMainLooper());
-        private final Spring[] pop = new Spring[18];   // the longest list: Home Settings, up to 16 rows
+        private final Spring[] pop = new Spring[18];   // the longest list: Home Settings, up to 17 rows
         private final List<String> appPkgs = new ArrayList<>(), appLabels = new ArrayList<>();
         // The list picker (the app of a remote button): what it shows, which one is in use, where we are.
         private final List<String> pickLabels = new ArrayList<>();
@@ -220,9 +220,11 @@ public class SettingsActivity extends Activity {
                     return name + (inUse ? Ui.tr(". Em uso", ". In use") : "") + ", " + (row + 1) + Ui.tr(" de 2", " of 2");
                 }
                 case HOME_SETTINGS:
-                case REMOTE_KEYS: {
-                    boolean keys = screen == REMOTE_KEYS;
-                    String[] labels = keys ? keyLabels() : settingLabels(), values = keys ? keyValues() : settingValues();
+                case REMOTE_KEYS:
+                case PICK_APPS: {
+                    boolean keys = screen == REMOTE_KEYS, apps = screen == PICK_APPS;
+                    String[] labels = apps ? pickLabels() : keys ? keyLabels() : settingLabels();
+                    String[] values = apps ? pickValues() : keys ? keyValues() : settingValues();
                     return row < labels.length ? labels[row] + ", " + values[row] : "";
                 }
                 case PICKER: {
@@ -340,6 +342,7 @@ public class SettingsActivity extends Activity {
                 case HOME_SETTINGS: return settingLabels().length;
                 case PICKER: return Math.min(PICK_VISIBLE, pickLabels.size());
                 case SHELF_EDIT: return Math.min(PICK_VISIBLE, shelfRows.size());
+                case PICK_APPS: return pickServices.size();
                 default: return Prefs.KEYS.length;
             }
         }
@@ -583,7 +586,7 @@ public class SettingsActivity extends Activity {
                     if (down && screen == SHELF_EDIT) {
                         moveShelfApp(e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
                         invalidate();
-                    } else if (down && screen == HOME_SETTINGS) {
+                    } else if (down && (screen == HOME_SETTINGS || screen == PICK_APPS)) {
                         adjust(e.getKeyCode() == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1);
                         invalidate();
                     }
@@ -604,7 +607,10 @@ public class SettingsActivity extends Activity {
                         if (e.getRepeatCount() == 0) backDown = true;
                     } else {
                         if (backDown && !e.isCanceled()) {
-                            if (screen == PICKER && pickFor == PICK_CITY) {
+                            if (screen == PICK_APPS) {
+                                focus = PICKS_ROW;
+                                screen = HOME_SETTINGS;
+                            } else if (screen == PICKER && pickFor == PICK_CITY) {
                                 focus = CITY_ROW;
                                 screen = HOME_SETTINGS;
                             } else if (screen == PICKER) {
@@ -638,7 +644,9 @@ public class SettingsActivity extends Activity {
         /** Home Settings: language, temperature, theme, screensaver, weather, city, quote of the day, age counter, photos,
          * quotes, then one row per coin. */
         private static final int SAVER_ROW = 3, WEATHER_ROW = 4, CITY_ROW = 5, DAILY_ROW = 6, CHILD_ROW = 7, PHOTOS_ROW = 8,
-                KID_ROW = 9, KID_APPS_ROW = 10, QUOTES_ROW = 11, COIN_ROWS = 12;
+                KID_ROW = 9, KID_APPS_ROW = 10, PICKS_ROW = 11, QUOTES_ROW = 12, COIN_ROWS = 13;
+        /** "Tonight: apps": the streaming services on this TV, {key, name}, each on or off. */
+        private final List<String[]> pickServices = new ArrayList<>();
 
         /** Home Settings rows get shorter when there are many, so the list and its hint stay on screen. */
         private float settingsPitch() {
@@ -663,6 +671,7 @@ public class SettingsActivity extends Activity {
             l.add(Ui.tr("Fotos do iCloud", "iCloud photos", "Fotos de iCloud"));
             l.add(Ui.tr("Perfil infantil", "Kid profile", "Perfil infantil"));
             l.add(Ui.tr("Apps do perfil infantil", "Kid profile apps", "Apps del perfil infantil"));
+            l.add(Ui.tr("Hoje à noite: apps", "Tonight: apps", "Esta noche: apps"));
             l.add(Ui.tr("Widget de cotações", "Quotes widget"));
             l.add("Bitcoin");
             l.add("Ethereum");
@@ -701,6 +710,10 @@ public class SettingsActivity extends Activity {
             int kidApps = HomeApps.shelfPackages(getContext()).size();
             Prefs.editingKid = false;
             v[KID_APPS_ROW] = kidApps + " apps";
+            List<String[]> services = Recs.installedServices(getContext());
+            int on = 0;
+            for (String[] sv : services) if (Prefs.pickApp(sv[0])) on++;
+            v[PICKS_ROW] = services.isEmpty() ? Ui.tr("Nenhum", "None", "Ninguno") : on + " / " + services.size();
             v[QUOTES_ROW] = onOff(Prefs.quotes());
             // No quotes widget, nowhere to show prices: the coins read as off (and stay locked) until it is back on.
             for (int i = COIN_ROWS; i < v.length; i++) v[i] = onOff(Prefs.quotes() && Prefs.coin(i - COIN_ROWS));
@@ -709,6 +722,18 @@ public class SettingsActivity extends Activity {
 
         private static String onOff(boolean on) {
             return on ? Ui.tr("Ligado", "On") : Ui.tr("Desligado", "Off");
+        }
+
+        private String[] pickLabels() {
+            String[] l = new String[pickServices.size()];
+            for (int i = 0; i < l.length; i++) l[i] = pickServices.get(i)[1];
+            return l;
+        }
+
+        private String[] pickValues() {
+            String[] v = new String[pickServices.size()];
+            for (int i = 0; i < v.length; i++) v[i] = onOff(Prefs.pickApp(pickServices.get(i)[0]));
+            return v;
         }
 
         private String[] keyLabels() {
@@ -750,6 +775,12 @@ public class SettingsActivity extends Activity {
 
         /** Changes the focused row's value one step (OK and → go forward, ← goes back). */
         private void adjust(int dir) {
+            if (screen == PICK_APPS) {
+                if (focus >= pickServices.size()) return;
+                String key = pickServices.get(focus)[0];
+                Prefs.setPickApp(key, !Prefs.pickApp(key));
+                return;
+            }
             if (screen == REMOTE_KEYS) {
                 int n = appPkgs.size();
                 int at = appPkgs.indexOf(Prefs.keyApp(Prefs.KEYS[focus]));
@@ -788,6 +819,7 @@ public class SettingsActivity extends Activity {
                 case CHILD_ROW: return;
                 case KID_ROW:
                 case KID_APPS_ROW:
+                case PICKS_ROW:
                     return;
                 case PHOTOS_ROW:
                     if (!Album.configured()) return;
@@ -1069,19 +1101,20 @@ public class SettingsActivity extends Activity {
         }
 
         private void drawList(Canvas c) {
-            boolean keys = screen == REMOTE_KEYS;
-            String[] labels = keys ? keyLabels() : settingLabels();
-            String[] values = keys ? keyValues() : settingValues();
+            boolean keys = screen == REMOTE_KEYS, apps = screen == PICK_APPS;
+            String[] labels = apps ? pickLabels() : keys ? keyLabels() : settingLabels();
+            String[] values = apps ? pickValues() : keys ? keyValues() : settingValues();
             Paint heading = Ui.text(Ui.displaySemibold, 34 * k, 0xFFFFFFFF);
-            c.drawText(keys ? Ui.tr("Botões do Controle", "Remote Buttons") : Ui.tr("Ajustes do Início", "Home Settings"),
+            c.drawText(apps ? Ui.tr("Hoje à noite: apps", "Tonight: apps", "Esta noche: apps")
+                    : keys ? Ui.tr("Botões do Controle", "Remote Buttons") : Ui.tr("Ajustes do Início", "Home Settings"),
                     LIST_X * k + 30 * k, (LIST_TOP - 24) * k, heading);
-            float pitch = keys ? LIST_ROW_H + LIST_ROW_GAP : settingsPitch();
+            float pitch = screen == HOME_SETTINGS ? settingsPitch() : LIST_ROW_H + LIST_ROW_GAP;
             for (int i = 0; i < labels.length; i++) {
                 float y = (LIST_TOP + 20 + i * pitch) * k;
                 rowRect.set(LIST_X * k, y, LIST_R * k, y + (pitch - LIST_ROW_GAP) * k);
                 float f = drawRowBackground(c, i);
                 rowLabel.setColor(blend(0xF2FFFFFF, INK, f));
-                boolean locked = !keys && i >= COIN_ROWS && !Prefs.quotes();
+                boolean locked = screen == HOME_SETTINGS && i >= COIN_ROWS && !Prefs.quotes();
                 rowValue.setColor(blend(locked ? 0x59FFFFFF : 0xB3FFFFFF, locked ? 0x591C1C1E : 0xB31C1C1E, f));
                 if (locked) rowLabel.setColor(blend(0x73FFFFFF, 0x731C1C1E, f));
                 float base = rowRect.centerY() + Ui.halfCap(rowLabel);
@@ -1091,6 +1124,11 @@ public class SettingsActivity extends Activity {
             Paint hint = Ui.text(Ui.regular, 23 * k, 0x8CFFFFFF);
             float hy = (LIST_TOP + 20 + labels.length * pitch + 36) * k;
             c.drawText(Ui.tr("OK ou as setas mudam o valor.", "OK or the arrows change the value."), LIST_X * k + 30 * k, hy, hint);
+            if (apps) {
+                c.drawText(Ui.tr("\u201cHoje à noite\u201d só sugere o que está nos serviços ligados.",
+                        "\u201cTonight\u201d only suggests what's on the services turned on.",
+                        "\u201cEsta noche\u201d solo sugiere lo que está en los servicios activados."), LIST_X * k + 30 * k, hy + 38 * k, hint);
+            }
             if (keys) {
                 c.drawText(RemoteKeys.VESTEL ? Ui.tr("YouTube, Prime Video e Google Play: a própria TV controla esses botões.",
                         "YouTube, Prime Video and Google Play: the TV itself controls those buttons.")
@@ -1138,6 +1176,16 @@ public class SettingsActivity extends Activity {
             } else if (screen == HOME_SETTINGS && focus == KID_ROW) {
                 askKidProfile();
                 return;
+            } else if (screen == PICK_APPS) {
+                adjust(1);
+                invalidate();
+                return;
+            } else if (screen == HOME_SETTINGS && focus == PICKS_ROW) {
+                pickServices.clear();
+                pickServices.addAll(Recs.installedServices(c));
+                if (pickServices.isEmpty()) return;
+                screen = PICK_APPS;
+                focus = 0;
             } else if (screen == HOME_SETTINGS && focus == KID_APPS_ROW) {
                 Prefs.editingKid = true;
                 openShelfEditor();

@@ -168,6 +168,10 @@ final class German {
             case "Ambience · time of day": return "Ambiente · nach Tageszeit";
             case "Ambience · mountains": return "Ambiente · Berge";
             case "Ambience · my photos": return "Ambiente · meine Fotos";
+            case "Tonight on": return "Heute Abend auf";
+            case "Tonight: apps": return "Heute Abend: Apps";
+            case "None": return "Keine";
+            case "“Tonight” only suggests what's on the services turned on.": return "„Heute Abend“ schlägt nur vor, was auf den eingeschalteten Diensten läuft.";
             case "Tonight": return "Heute Abend";
             case "Weather widget": return "Wetter-Widget";
             // What TalkBack reads on the drawer's weather card (#47)

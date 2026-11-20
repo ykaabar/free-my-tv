@@ -56,7 +56,7 @@ final class Recs {
     private static final String IMAGES = "https://image.tmdb.org/t/p/original";
     private static final long LIST_EVERY = 6 * 3600_000L;
     /** Bump when what is saved for each title changes (the saved list is discarded and fetched again). */
-    private static final int CACHE_VERSION = 4;
+    private static final int CACHE_VERSION = 5;
     private static final int MANHA = 0, TARDE = 1, NOITE = 2;
     static final String[] PERIOD_LABEL = {"PARA ESTA MANHÃ", "PARA ESTA TARDE", "PARA ESTA NOITE"};
     static final String[] PERIOD_LABEL_RU = {"ЭТИМ УТРОМ", "СЕГОДНЯ ДНЁМ", "СЕГОДНЯ ВЕЧЕРОМ"};
@@ -111,6 +111,8 @@ final class Recs {
     private final Map<String, Backdrop> images = new LinkedHashMap<>();   // this hour's, built and ready to draw
     private final java.util.Set<String> pending = new java.util.HashSet<>();
     private volatile List<Pick> picks = new ArrayList<>();
+    /** Per service (our key → its picks): what "Tonight" shows while an app of that service is focused (Ambience). */
+    private volatile Map<String, List<Pick>> byApp = new HashMap<>();
     private volatile int period = -1;
     private volatile long listAt;
     private volatile boolean fetching;
@@ -126,6 +128,16 @@ final class Recs {
         try {
             String saved = cache.getString("picks", null);
             if (saved != null) picks = parse(new JSONArray(saved));
+            String apps = cache.getString("byApp", null);
+            if (apps != null) {
+                JSONObject o = new JSONObject(apps);
+                Map<String, List<Pick>> m = new HashMap<>();
+                for (java.util.Iterator<String> it = o.keys(); it.hasNext(); ) {
+                    String key = it.next();
+                    m.put(key, parse(o.getJSONArray(key)));
+                }
+                byApp = m;
+            }
             period = cache.getInt("period", -1);
             listAt = cache.getLong("listAt", 0);
             listLanguage = cache.getString("language", cache.getBoolean("english", false) ? "en" : "pt");
@@ -185,12 +197,16 @@ final class Recs {
         if (!hasKey(context)) return list;    // no TMDB key: no recommendations
         Map<String, Boolean> have = new HashMap<>();   // one look per app, not per title (this runs every 15 s)
         for (Pick p : picks) {
-            if ((kind == null || kind.equals(p.kind))
+            if ((kind == null || kind.equals(p.kind)) && (p.app == null || Prefs.pickApp(p.app))   // turned off: skip
                     && (!p.detailed || (p.pkg != null && have.computeIfAbsent(p.pkg, this::installed)))) list.add(p);   // app missing: skip
         }
+        return threeForThisHour(list);
+    }
+
+    /** Three per hour, never two from the same franchise ("Law & Order" and "Law & Order: Special…"). */
+    private static List<Pick> threeForThisHour(List<Pick> list) {
         if (list.isEmpty()) return list;
         long hour = System.currentTimeMillis() / 3600_000L;
-        // Three per hour, never two from the same franchise ("Law & Order" and "Law & Order: Special…").
         List<Pick> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (int i = 0; i < list.size() && out.size() < 3; i++) {
@@ -206,6 +222,45 @@ final class Recs {
         int cut = t.indexOf(':');
         if (cut < 0) cut = t.indexOf(" - ");
         return (cut > 0 ? t.substring(0, cut) : t).trim();
+    }
+
+    /**
+     * This hour's three on the service of the app `pkg` (Canal+ focused: Canal+'s), or null when that app is no streaming
+     * service we know, is turned off for "Tonight" or has nothing yet: then the caller shows the mix.
+     */
+    List<Pick> forApp(String pkg) {
+        String key = serviceKey(pkg);
+        if (key == null || !hasKey(context) || !Prefs.pickApp(key)) return null;
+        List<Pick> list = byApp.get(key);
+        if (list == null || list.isEmpty()) return null;
+        List<Pick> out = threeForThisHour(new ArrayList<>(list));
+        return out.isEmpty() ? null : out;
+    }
+
+    /** Our key of the service whose app is `pkg` ("canal" for Canal+'s app), or null. */
+    static String serviceKey(String pkg) {
+        if (pkg == null) return null;
+        for (String[] s : SERVICES) for (String p : s[2].split("\\|")) if (p.equals(pkg)) return s[1];
+        return null;
+    }
+
+    static String serviceName(String key) {
+        String name = key == null ? null : SERVICE_NAME.get(key);
+        return name == null ? "" : name;
+    }
+
+    /** The streaming services with their app on this TV, as {key, name}: the settings' "Tonight" list. */
+    static List<String[]> installedServices(Context c) {
+        List<String[]> out = new ArrayList<>();
+        for (String[] s : SERVICES) {
+            for (String pkg : s[2].split("\\|")) {
+                if (HomeApps.launchIntent(c.getPackageManager(), pkg) != null) {
+                    out.add(new String[] {s[1], SERVICE_NAME.get(s[1])});
+                    break;
+                }
+            }
+        }
+        return out;
     }
 
     /** Name of the service the pick is on ("Netflix"), or empty. */
@@ -262,6 +317,14 @@ final class Recs {
                 // One failing title doesn't stop the others; whatever has no app on the TV is not downloaded.
                 int failures = 0, tried = 0;
                 String last = "";
+                for (List<Pick> list : byApp.values()) {   // the per-app cards' photos, so focusing an app is quick
+                    for (Pick pick : threeForThisHour(new ArrayList<>(list))) {
+                        try {
+                            download(pick);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
                 for (Pick pick : wanted()) {
                     tried++;
                     try {
@@ -386,7 +449,7 @@ final class Recs {
         for (int i = 0; i < providers.length(); i++) {
             JSONObject o = providers.getJSONObject(i);
             String[] s = service(o.optString("provider_name"));
-            if (s != null && app(s) != null) services.put(o.getInt("provider_id"), s);
+            if (s != null && usable(s)) services.put(o.getInt("provider_id"), s);
         }
         if (services.isEmpty()) throw new IOException("none of the TV's streaming services are on TMDB");
         StringBuilder ids = new StringBuilder();
@@ -424,6 +487,29 @@ final class Recs {
         alternate(list, seen, hotMovies, hotShows, 24);
         alternate(list, seen, newMovies, newShows, 24);
         if (list.isEmpty()) throw new IOException("TMDB returned no recommendations");
+        // 3. For each service, its own list (shown while its app is focused): its trending titles first, then what's
+        //    popular on it, movies and shows alternating. TMDB's list already says the service: no details needed.
+        Map<String, List<Pick>> apps = new HashMap<>();
+        for (Map.Entry<Integer, String[]> e : services.entrySet()) {
+            String key = e.getValue()[1], pkg = app(e.getValue());
+            if (apps.containsKey(key)) continue;   // a service listed twice on TMDB (with and without ads)
+            String only = "&language=" + lang() + "&watch_region=" + REGION + "&with_watch_monetization_types=flatrate"
+                    + "&include_adult=false&sort_by=popularity.desc&with_watch_providers=" + e.getKey();
+            List<Pick> own = new ArrayList<>(), ownMovies = new ArrayList<>(), ownShows = new ArrayList<>();
+            java.util.Set<String> ownSeen = new java.util.HashSet<>();
+            for (Pick q : list) if (key.equals(q.app) && ownSeen.add(key(q))) own.add(q);
+            try {
+                JSONArray m = get("/discover/movie?vote_count.gte=50" + only).getJSONArray("results");
+                JSONArray t = get("/discover/tv?vote_count.gte=30" + only).getJSONArray("results");
+                for (int i = 0; i < m.length() && i < 8; i++) addOn(ownMovies, m.getJSONObject(i), "movie", key, pkg);
+                for (int i = 0; i < t.length() && i < 8; i++) addOn(ownShows, t.getJSONObject(i), "tv", key, pkg);
+            } catch (Exception ex) {
+                AppLog.w("recommendations for " + key + ": " + ex.getMessage());
+            }
+            alternate(own, ownSeen, ownMovies, ownShows, 9);
+            if (!own.isEmpty()) apps.put(key, own);
+        }
+        byApp = apps;
         picks = list;
         period = p;
         listAt = System.currentTimeMillis();
@@ -464,6 +550,22 @@ final class Recs {
         list.add(p);
     }
 
+    /** A title from one service's list: the service is known, and the list has the rating (no details to fetch). */
+    private static void addOn(List<Pick> list, JSONObject o, String kind, String key, String pkg) {
+        int before = list.size();
+        add(list, o, kind);
+        if (list.size() == before) return;
+        Pick p = list.get(before);
+        p.app = key;
+        p.pkg = pkg;
+        p.rating = o.optInt("vote_count") >= 30 ? o.optDouble("vote_average", 0) : 0;
+        long first = isoDay(o.optString("release_date", o.optString("first_air_date", "")));
+        long now = System.currentTimeMillis();
+        p.fresh = first > 0 && now - first < 30L * 86_400_000L && first <= now + 86_400_000L ? 1 : 0;
+        p.meta = SERVICE_NAME.get(key);
+        p.detailed = true;
+    }
+
     /** Genre, runtime (or seasons) and the service it's on, among the ones the TV has. */
     private void fetchDetails(Pick p) throws Exception {
         JSONObject o = get("/" + p.kind + "/" + p.id
@@ -498,7 +600,7 @@ final class Recs {
         JSONArray flat = br == null ? null : br.optJSONArray("flatrate");
         for (int i = 0; flat != null && i < flat.length() && p.app == null; i++) {
             String[] s = service(flat.getJSONObject(i).optString("provider_name"));
-            if (s != null && app(s) != null) {
+            if (s != null && usable(s)) {
                 p.app = s[1];
                 p.pkg = app(s);
             }
@@ -590,6 +692,11 @@ final class Recs {
         return null;
     }
 
+    /** On the TV and not turned off for "Tonight" in the settings. */
+    private boolean usable(String[] service) {
+        return Prefs.pickApp(service[1]) && app(service) != null;
+    }
+
     private boolean installed(String pkg) {
         return HomeApps.launchIntent(context.getPackageManager(), pkg) != null;
     }
@@ -598,7 +705,7 @@ final class Recs {
         long stamp = Config.TMDB_KEY.hashCode() * 31L + REGION.hashCode();
         for (String[] service : SERVICES) {
             String pkg = app(service);
-            stamp = stamp * 31L + (pkg != null ? pkg.hashCode() : 0);
+            stamp = stamp * 31L + (pkg != null && Prefs.pickApp(service[1]) ? pkg.hashCode() : 0);
         }
         return stamp;
     }
@@ -695,6 +802,9 @@ final class Recs {
         }
     }
 
+    /** The mix's 24 and each service's few. */
+    private static final int KEEP_FILES = 48;
+
     private static void prune(File dir) {
         // A download cut off when the system stopped the app leaves its .part behind.
         long stale = System.currentTimeMillis() - 10 * 60_000L;
@@ -704,9 +814,9 @@ final class Recs {
             if (parts[i].lastModified() < stale) parts[i].delete();
         }
         File[] files = dir.listFiles((d, name) -> !name.endsWith(".part"));
-        if (files == null || files.length <= 24) return;
+        if (files == null || files.length <= KEEP_FILES) return;
         Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
-        for (int i = 0; i < files.length - 24; i++) {
+        for (int i = 0; i < files.length - KEEP_FILES; i++) {
             //noinspection ResultOfMethodCallIgnored
             files[i].delete();
         }
@@ -716,17 +826,23 @@ final class Recs {
 
     private void save() {
         try {
-            JSONArray a = new JSONArray();
-            for (Pick p : picks) {
-                a.put(new JSONObject().put("id", p.id).put("kind", p.kind).put("title", p.title).put("backdrop", p.backdrop)
-                        .put("meta", p.meta).put("app", p.app == null ? "" : p.app).put("pkg", p.pkg == null ? "" : p.pkg)
-                        .put("detailed", p.detailed).put("rating", p.rating).put("fresh", p.fresh));
-            }
-            cache.edit().putString("picks", a.toString()).putInt("period", period).putLong("listAt", listAt)
+            JSONObject apps = new JSONObject();
+            for (Map.Entry<String, List<Pick>> e : byApp.entrySet()) apps.put(e.getKey(), toJson(e.getValue()));
+            cache.edit().putString("picks", toJson(picks).toString()).putString("byApp", apps.toString()).putInt("period", period).putLong("listAt", listAt)
                     .putString("language", listLanguage)
                     .putLong("keyStamp", keyStamp).putInt("version", CACHE_VERSION).apply();
         } catch (Exception ignored) {
         }
+    }
+
+    private static JSONArray toJson(List<Pick> list) throws org.json.JSONException {
+        JSONArray a = new JSONArray();
+        for (Pick p : list) {
+            a.put(new JSONObject().put("id", p.id).put("kind", p.kind).put("title", p.title).put("backdrop", p.backdrop)
+                    .put("meta", p.meta).put("app", p.app == null ? "" : p.app).put("pkg", p.pkg == null ? "" : p.pkg)
+                    .put("detailed", p.detailed).put("rating", p.rating).put("fresh", p.fresh));
+        }
+        return a;
     }
 
     private static List<Pick> parse(JSONArray a) {

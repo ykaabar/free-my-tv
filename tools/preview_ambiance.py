@@ -9,7 +9,8 @@ font=A+"fonts/Antonio-Light.ttf"; inter=A+"fonts/InterVariable.ttf"
 # name: date top, clock top, size, left(-1 centre), dark ink, fill, cut-out  (same columns as SCENE_AT)
 SC={"night":(96,150,400,-1,0,3,0),"dawn":(200,250,340,1020,0,0,0),"day":(70,120,330,-1,0,0,0)}
 APPS=[("ATLAS PRO",(20,20,24)),("CANAL+",(0,0,0)),("TF1+",(29,59,209)),("prime video",(26,152,255)),("Apple tv",(0,0,0)),("YouTube",(245,245,247))]
-def render(name, out, picks=False, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):
+SERVICES={"CANAL+":"CANAL+","TF1+":"TF1+","prime video":"Prime Video","Apple tv":"Apple TV"}
+def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):
     dt,ct,size,left,dark,fillm,cut=SC[name]; W,H=1920,1080
     im=Image.open(P+f"{name}.jpg").convert("RGBA")
     glass=Image.open(P+f"{name}-glass.jpg").convert("RGBA").resize((W,H))
@@ -42,21 +43,23 @@ def render(name, out, picks=False, t="20:47", date="Vendredi 20 novembre", wx="�
     d.rounded_rectangle(panel,radius=62,outline=(255,210,220,70),width=1)
     fl=ImageFont.truetype(inter,26)
     for i,(lab,col) in enumerate(APPS):
-        x0=L+i*(tw2+48); foc=i==1; s=1.08 if foc else 1
+        x0=L+i*(tw2+48); foc=i==focus; s=1.08 if foc else 1
         cx,cy=x0+tw2/2,854+63-(10 if foc else 0); hw,hh=tw2*s/2,126*s/2
         box=(cx-hw,cy-hh,cx+hw,cy+hh)
         c=col if foc else tuple(int(v*0.82) for v in col)
         d.rounded_rectangle(box,radius=22,fill=c); d.text((cx,cy),lab,font=fl,fill=(17,17,17) if sum(col)>600 else (255,255,255),anchor="mm")
         if foc:
             d.rounded_rectangle(box,radius=22,outline=(255,255,255),width=4)
-            d.text((cx,box[3]+40),"CANAL+",font=ImageFont.truetype(inter,21),fill=(255,255,255),anchor="ms")
+            d.text((cx,box[3]+40),lab,font=ImageFont.truetype(inter,21),fill=(255,255,255),anchor="ms")
     if picks:
         cw,chh,gap=360,203,40; Lc=(W-(3*cw+2*gap))/2; bottom=814-48
-        d.text((W/2,bottom-chh-22),"CE SOIR",font=ImageFont.truetype(inter,20),fill=(240,240,240),anchor="ms")
+        # "Tonight" follows the focused app when it's a streaming service (Recs.forApp), else the mix of them all
+        svc=SERVICES.get(APPS[focus][0]); metas=[svc]*3 if svc else ["CANAL+","Prime Video","TF1+"]
+        d.text((W/2,bottom-chh-22),"CE SOIR SUR "+svc.upper() if svc else "CE SOIR",font=ImageFont.truetype(inter,20),fill=(240,240,240),anchor="ms")
         for i in range(3):
             x0=Lc+i*(cw+gap); d.rounded_rectangle((x0,bottom-chh,x0+cw,bottom),radius=18,fill=(40,40,52),outline=(255,255,255,40))
             d.text((x0+18,bottom-60),"[Affiche TMDB]",font=ImageFont.truetype(inter,18),fill=(200,200,200),anchor="ls")
-            d.text((x0+18,bottom-18),"[Titre] · ★ 7,4 · CANAL+",font=ImageFont.truetype(inter,18),fill=(230,230,230),anchor="ls")
+            d.text((x0+18,bottom-18),"[Titre] · ★ 7,4 · "+metas[i],font=ImageFont.truetype(inter,18),fill=(230,230,230),anchor="ls")
     else:
         ft=ImageFont.truetype(inter,26); fq=ImageFont.truetype(inter,23)
         d.text((W/2,814-34-40),"Nour a 9 mois et 14 jours",font=ft,fill=(255,255,255),anchor="ms")
@@ -64,4 +67,5 @@ def render(name, out, picks=False, t="20:47", date="Vendredi 20 novembre", wx="�
     im.convert("RGB").save(out,quality=88)
 if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
-    render("day","ecran-day-cesoir.jpg",picks=True)
+    render("day","ecran-day-cesoir.jpg",picks=True)                 # Canal+ focused: tonight on Canal+
+    render("day","ecran-day-cesoir-mix.jpg",picks=True,focus=5)     # YouTube focused: the mix

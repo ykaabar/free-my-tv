@@ -167,6 +167,10 @@ final class Russian {
             case "Ambience · time of day": return "Атмосфера · по времени суток";
             case "Ambience · mountains": return "Атмосфера · горы";
             case "Ambience · my photos": return "Атмосфера · мои фото";
+            case "Tonight on": return "Сегодня вечером на";
+            case "Tonight: apps": return "Сегодня вечером: приложения";
+            case "None": return "Нет";
+            case "“Tonight” only suggests what's on the services turned on.": return "«Сегодня вечером» предлагает только то, что есть во включённых сервисах.";
             case "Tonight": return "Сегодня вечером";
             case "Weather widget": return "Виджет погоды";
             // What TalkBack reads on the drawer's weather card (#47)

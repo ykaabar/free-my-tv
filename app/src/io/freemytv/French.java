@@ -160,6 +160,10 @@ final class French {
             case "Ambience · time of day": return "Ambiance · selon l'heure";
             case "Ambience · mountains": return "Ambiance · montagnes";
             case "Ambience · my photos": return "Ambiance · mes photos";
+            case "Tonight on": return "Ce soir sur";
+            case "Tonight: apps": return "Ce soir : applis";
+            case "None": return "Aucun";
+            case "“Tonight” only suggests what's on the services turned on.": return "« Ce soir » ne propose que ce qui est sur les services allumés.";
             case "Tonight": return "Ce soir";
             case "Weather widget": return "Widget météo";
             // What TalkBack reads on the drawer's weather card (#47)

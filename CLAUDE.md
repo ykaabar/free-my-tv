@@ -183,6 +183,9 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   weather sit above it, today's line (or tonight's picks, with the sparkles button) above the apps, which use the glass
   design's row. **Design rule from the owner: every change to this screen updates the design canvas's "Écran actuel"
   board, rendered by `tools/preview_ambiance.py` from the same values, before they build.**
+- Picks come only from the services left on in *Home Settings* → *Tonight: apps* (`Prefs.pickApp`; an app installed
+  without a subscription is turned off there). In Ambience, "Tonight" follows the app focused on the shelf: that
+  service's own list (`Recs.forApp`, from `byApp`), the mix of them all for any other app.
 - Picks: the focused card is the wide one and the background follows it; holding OK on a card plays its trailer
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
 - The moon button is the sleep timer (`Sleep`): 30/60/90 min, an exact alarm wakes `HomeReceiver`, which presses

@@ -1965,6 +1965,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** Sets the springs' targets from the current focus (snap: no animation). */
     private void retarget(boolean snap) {
+        if (amb && zone == Z_SHELF && !sheetOpen) {
+            // "Tonight" follows the focused app, once the focus rests a moment (racing along the shelf loads nothing).
+            handler.removeCallbacks(followShelf);
+            handler.postDelayed(followShelf, 250);
+        }
         if (cardIndex != followedCard) {
             followedCard = cardIndex;
             handler.removeCallbacks(followCard);
@@ -3047,7 +3052,15 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** The three cards of the current tab (Explore, Movies, Shows) and the background taken from the first one. */
     private void updateCards() {
-        List<Recs.Pick> list = recs.now(TAB_KIND[tab]);
+        // Ambience: the focused app's service (Canal+ focused: tonight on Canal+); any other app, the mix.
+        List<Recs.Pick> list = amb && picksPkg != null ? recs.forApp(picksPkg) : null;
+        String service = list == null ? null : Recs.serviceKey(picksPkg);
+        if (list == null) list = recs.now(TAB_KIND[tab]);
+        if (amb) {
+            String head = service == null ? Ui.tr("Hoje à noite", "Tonight", "Esta noche")
+                    : Ui.tr("Hoje à noite no", "Tonight on", "Esta noche en") + " " + Recs.serviceName(service);
+            ambHead = head.toUpperCase(Ui.locale());
+        }
         if (!samePicks(list, cards)) {
             cards = list;
             cardIndex = Math.min(cardIndex, Math.max(0, list.size() - 1));
@@ -3056,7 +3069,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 retarget(false);
             }
         }
-        for (Recs.Pick p : recs.wanted()) recs.backdrop(p);   // all three tabs preloaded: switching tabs is instant
+        if (amb) for (Recs.Pick p : cards) recs.backdrop(p);
+        else for (Recs.Pick p : recs.wanted()) recs.backdrop(p);   // all three tabs preloaded: switching tabs is instant
         boolean none = cards.isEmpty() || !picksOn();
         Backdrop b = none ? null : recs.backdrop(cards.get(Math.min(cardIndex, cards.size() - 1)));
         if (!amb && (none || b != null)) showBackdrop(b);
@@ -4125,6 +4139,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private final String[] ambMeta = {"", "", ""};
+    private String picksPkg;            // the app "Tonight" follows (Ambience): the last one focused on the shelf
+    private String ambHead = "";
+    private final Runnable followShelf = () -> {
+        String pkg = zone == Z_SHELF && shelfIndex < shelf.size() ? shelf.get(shelfIndex).pkg : picksPkg;
+        if (pkg == null ? picksPkg == null : pkg.equals(picksPkg)) return;
+        picksPkg = pkg;
+        updateCards();
+    };
     private Paint aCardTitle, aCardMeta, aCardHead;
     private LinearGradient ambCardShade;
 
@@ -4173,7 +4195,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambCardShade = new LinearGradient(0, 0, 0, 1, 0x00000000, 0xD9000000, Shader.TileMode.CLAMP);
         }
         int n = Math.min(3, cards.size());
-        c.drawText(Ui.tr("Hoje à noite", "Tonight", "Esta noche").toUpperCase(Ui.locale()), w / 2f, cardRects[0].top - 22 * k, aCardHead);
+        if (ambHead.isEmpty()) ambHead = Ui.tr("Hoje à noite", "Tonight", "Esta noche").toUpperCase(Ui.locale());   // once
+        c.drawText(ambHead, w / 2f, cardRects[0].top - 22 * k, aCardHead);
         for (int i = 0; i < n; i++) drawTonightCard(c, i);
     }
 
