@@ -179,10 +179,10 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   iOS 26 `photos.icloud.com/shared/album/<key>` links go through CloudKit's public resolve and the zone's changes,
   older `#B0…` links through sharedstreams; both undocumented by Apple). The weather takes the room the others leave;
   when the row is too full the photo card goes first, then *Today*.
-- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`): time of day = three Unsplash photos in
-  `assets/scenes` (by the sun where the TV is: dawn from 45 min before sunrise to 1 h 30 after, day until 30 min
-  after sunset, then night; `HomeView.sceneFor`, credits in `CREDITS.txt`), each
-  with a blurred `-glass.jpg` for the clock; mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
+- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`): time of day = one mountain in four lights in
+  `assets/scenes` (the same frame, aligned to the pixel, so only the light changes, in an 8 s fade: dawn from 45 min
+  before sunrise to 1 h 30 after, day, sunset from 1 h before sunset to 40 min after, then night;
+  `HomeView.sceneFor`, credits in `CREDITS.txt`), each with a blurred `-glass.jpg` for the clock; mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
   clock is Antonio Light (`Ui.clock`) in glass (after couch-tv, MIT), placed per photo in `SCENE_AT`; the date and
   weather sit above it, today's line (or tonight's picks, with the sparkles button) above the apps, which use the glass
   design's row. **Design rule from the owner: every change to this screen updates the design canvas's "Écran actuel"

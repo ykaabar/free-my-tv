@@ -7,7 +7,7 @@ import os
 A=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "assets") + "/"; P=A+"scenes/"
 font=A+"fonts/Antonio-Light.ttf"; inter=A+"fonts/InterVariable.ttf"
 # name: date top, clock top, size, left(-1 centre), dark ink, fill, cut-out  (same columns as SCENE_AT)
-SC={"night":(96,150,400,-1,0,3,0),"dawn":(200,250,340,1020,0,0,0),"day":(70,120,330,-1,0,0,0)}
+SC={"night":(70,120,330,-1,0,3,0),"dawn":(70,120,330,-1,0,0,0),"day":(70,120,330,-1,0,0,0),"sunset":(70,120,330,-1,0,0,0)}
 APPS=[("ATLAS PRO",(20,20,24)),("CANAL+",(0,0,0)),("TF1+",(29,59,209)),("prime video",(26,152,255)),("Apple tv",(0,0,0)),("YouTube",(245,245,247))]
 SERVICES={"CANAL+":"CANAL+","TF1+":"TF1+","prime video":"Prime Video","Apple tv":"Apple TV"}
 def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):

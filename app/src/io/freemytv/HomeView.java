@@ -3475,19 +3475,21 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      * size, its left edge (-1 = centered), dark ink, the glass fill (0 = as is, 1 = brighter, 2 = darker, 3 = light
      * frosted) and whether a cut-out goes over the clock (none of these photos has one).
      */
-    private static final String[] SCENES = {"night", "dawn", "day"};
+    /** One mountain in four lights (the same frame, aligned to the pixel): only the light changes through the day. */
+    private static final String[] SCENES = {"night", "dawn", "day", "sunset"};
     private static final float[][] SCENE_AT = {
-        // date top, clock top, size, left, dark ink, fill, has a cut-out
-        {96, 150, 400, -1, 0, 3, 0},     // the starry sky over the peaks
-        {200, 250, 340, 1020, 0, 0, 0},  // to the right, in the sky beside the summit
-        {70, 120, 330, -1, 0, 0, 0},     // the lake: high, over the far peaks
+        // date top, clock top, size, left, dark ink, fill, has a cut-out: the same place on all four, over the summit
+        {70, 120, 330, -1, 0, 3, 0},     // night: light frosted glass on the dark sky
+        {70, 120, 330, -1, 0, 0, 0},
+        {70, 120, 330, -1, 0, 0, 0},
+        {70, 120, 330, -1, 0, 0, 0},
     };
-    private static final int[] SCENE_RIM = {0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF};
-    private static final int[] SCENE_SHADE_TOP = {0x40000000, 0x40000000, 0x40000000};
+    private static final int[] SCENE_RIM = {0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF};
+    private static final int[] SCENE_SHADE_TOP = {0x40000000, 0x40000000, 0x40000000, 0x40000000};
 
     // Tonight's picks over the shelf, when shown (1920 × 1080): card size and gap.
     private static final float A_CARD_W = 360, A_CARD_H = 203, A_CARD_GAP = 40;
-    private static final long AMB_EVERY = 5 * 60_000L, AMB_FADE = 1500, AMB_RETRY = 60_000L;
+    private static final long AMB_EVERY = 5 * 60_000L, AMB_FADE = 1500, SCENE_FADE = 8000, AMB_RETRY = 60_000L;
     private static final String FALLBACK = "#stand-in";
 
     private boolean amb;
@@ -3614,15 +3616,17 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /**
-     * The photo for the sun where the TV is (today's sunrise and sunset, from the weather): dawn from 45 min before
-     * sunrise to 1 h 30 after, the lake until 30 min after sunset, then the night. Without weather yet, 7 am and 6 pm.
+     * The light for the sun where the TV is (today's sunrise and sunset, from the weather): dawn from 45 min before
+     * sunrise to 1 h 30 after, day, sunset from 1 h before sunset to 40 min after, then night. Without weather yet,
+     * 7 am and 6 pm.
      */
     private int sceneFor() {
         long t = Shaders.timeOfDay(System.currentTimeMillis(), 0), min = 60_000L;
         HomeData.Weather wx = data.weather;
         long rise = Shaders.timeOfDay(wx.sunrise, 7 * 60 * min), set = Shaders.timeOfDay(wx.sunset, 18 * 60 * min);
-        if (t < rise - 45 * min || t >= set + 30 * min) return 0;
-        return t < rise + 90 * min ? 1 : 2;
+        if (t < rise - 45 * min || t >= set + 40 * min) return 0;
+        if (t < rise + 90 * min) return 1;
+        return t >= set - 60 * min ? 3 : 2;
     }
 
     /** Time for another background: the scene (or the source) changed, or a photo has been shown for a while. */
@@ -3794,7 +3798,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         ambShade = null;
         ambSheenKey = "";
         ambFadeAt = SystemClock.uptimeMillis();
-        ambFadeLen = ambOld == null ? 450 : AMB_FADE;
+        // The first photo: nothing to fade from. One light to the next on the same mountain: slowly, like the sky.
+        ambFadeLen = ambOld == null ? 450 : scene >= 0 ? SCENE_FADE : AMB_FADE;
         ambInk();
         checkNight(true);
         heroDirty = tilesDirty = statusDirty = true;

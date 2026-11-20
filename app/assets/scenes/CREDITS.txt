@@ -1,9 +1,6 @@
-Ambiance backgrounds, by time of day. Photos from Unsplash, under the Unsplash License (free to use, copy and
-modify; not to be sold as they are). Cropped to 16:9; the -glass.jpg files are blurred, brightened copies for the
-clock's glass.
-
-night.jpg (8 pm to 5 am): Renato Muolo, unsplash.com/photos/evJh_sTH0b8
-dawn.jpg  (5 am to 9 am): Sam Ferrara, unsplash.com/photos/1527pjeb6jg
-day.jpg   (9 am to 8 pm): Mark Koch, unsplash.com/photos/KiRlN3jjVNU
+Ambiance backgrounds: one mountain in four lights (night, dawn, day, sunset), chosen by the sun where the TV is.
+Variants of one picture made by the owner with an AI image editor (Gemini), then aligned to the day picture to the
+pixel (tools: OpenCV) and brought to 1920 × 1080. Source of the original picture: to be credited here.
+The -glass.jpg files are blurred, brightened copies for the clock's glass.
 
 The clock's layout over each photo (glass fill, rim, sheen, shadow) follows couch-tv's (github.com/Seagey/couch-tv, MIT).
