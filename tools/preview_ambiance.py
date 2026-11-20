@@ -10,17 +10,44 @@ font=A+"fonts/Antonio-Light.ttf"; inter=A+"fonts/InterVariable.ttf"
 SC={"night":(190,240,440,-1,0,3,1),"dawn":(190,240,440,-1,0,0,1),"day":(190,240,440,-1,0,0,1),"sunset":(190,240,440,-1,0,0,1)}
 APPS=[("ATLAS PRO",(20,20,24)),("CANAL+",(0,0,0)),("TF1+",(29,59,209)),("prime video",(26,152,255)),("Apple tv",(0,0,0)),("YouTube",(245,245,247))]
 SERVICES={"CANAL+":"CANAL+","TF1+":"TF1+","prime video":"Prime Video","Apple tv":"Apple TV"}
-def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):
+# The weather over the mountain, as HomeView.graded / drawWeatherVeils / drawWeather: saturation, brightness, the colour
+# the photo leans to (and how much), the sky's veil at the top.
+WX={"cloudy":(0.62,0.9,(0x8A,0x93,0x9C),0.08,(0x50,0x58,0x62,0x66)),"fog":(0.5,0.97,(0xB4,0xBC,0xC4),0.2,(0xC8,0xD0,0xD8,0x30)),
+    "rain":(0.5,0.78,(0x5A,0x68,0x78),0.12,(0x50,0x58,0x62,0x66)),"snow":(0.6,1.0,(0xDC,0xE6,0xF2),0.14,(0xE0,0xE8,0xF0,0x40)),
+    "storm":(0.42,0.64,(0x3A,0x42,0x50),0.15,(0x40,0x48,0x52,0x80))}
+def grade(img,kind):
+    if kind not in WX: return img
+    sat,b,t,a,_=WX[kind]; alpha=img.getchannel("A")
+    g=ImageEnhance.Color(img.convert("RGB")).enhance(sat)
+    keep=(1-a)*b; g=Image.merge("RGB",[ch.point(lambda v,c=c:int(min(255,v*keep+c*a))) for ch,c in zip(g.split(),t)])
+    g=g.convert("RGBA"); g.putalpha(alpha); return g
+def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert", weather=None):
     dt,ct,size,left,dark,fillm,cut=SC[name]; W,H=1920,1080
     if picks: dt-=110; ct-=110   # "Tonight" shown: the date and the clock rise (HomeView.AMB_LIFT)
-    im=Image.open(P+f"{name}.jpg").convert("RGBA")
+    im=grade(Image.open(P+f"{name}.jpg").convert("RGBA"),weather)
     glass=Image.open(P+f"{name}-glass.jpg").convert("RGBA").resize((W,H))
+    if fillm==0: glass=grade(glass,weather)   # plain glass takes the weather's light (HomeView: fill 0 → graded)
     if fillm==1: glass=ImageEnhance.Brightness(glass).enhance(1.1)
     if fillm==3: glass=Image.eval(glass.convert('RGB'),lambda v:int(v*0xB4/255+0x4E)).convert('RGBA')   # clockLight
     # top shade (0x40 black → 0 over 58%)
     sh=Image.new("L",(1,H)); 
     for y in range(H): sh.putpixel((0,y),int(0x40*max(0,1-y/(H*0.58))))
     im=Image.composite(Image.new("RGBA",(W,H),(0,0,0,255)),im,sh.resize((W,H)))
+    if weather in WX:
+        r,g,b,a0=WX[weather][4]; v=Image.new("L",(1,H))
+        for y in range(H): v.putpixel((0,y),int(a0*max(0,1-y/(H*0.5))))
+        im=Image.composite(Image.new("RGBA",(W,H),(r,g,b,255)),im,v.resize((W,H)))
+        if weather=="fog":
+            v=Image.new("L",(1,H))
+            for y in range(H): v.putpixel((0,y),int(0x9C*max(0,min(1,(y-H*0.42)/(H*0.44)))))
+            im=Image.composite(Image.new("RGBA",(W,H),(0xC8,0xD0,0xD8,255)),im,v.resize((W,H)))
+        if weather in ("rain","storm","snow"):   # one frame of HomeView.drawWeather (120 drops or flakes)
+            import random; rnd=random.Random(7); lay=Image.new("RGBA",(W,H)); dl=ImageDraw.Draw(lay)
+            for i in range(120):
+                x,y,v2=rnd.random()*W,rnd.random()*H,rnd.random()
+                if weather=="snow": rr=1.8+2.6*v2; dl.ellipse((x-rr,y-rr,x+rr,y+rr),fill=(255,255,255,int(110+90*v2)))
+                else: L=26+22*v2; dl.line((x,y,x-L*0.16,y-L),fill=(232,238,244,80 if weather=="storm" else 60),width=2)
+            im.alpha_composite(lay)
     f=ImageFont.truetype(font,int(size*0.82)); d=ImageDraw.Draw(im)
     tw=d.textlength(t,font=f); x= left if left>=0 else (W-tw)/2; base=ct+0.76*size
     mask=Image.new("L",(W,H),0); ImageDraw.Draw(mask).text((x,base),t,font=f,fill=255,anchor="ls")
@@ -30,7 +57,7 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
     rim=Image.new("L",(W,H),0); ImageDraw.Draw(rim).text((x,base),t,font=f,fill=0,anchor="ls",stroke_width=1,stroke_fill=140)
     im=Image.composite(Image.new("RGBA",(W,H),(255,255,255,255)),im,rim)
     if cut:   # the scenery in front of the clock, over the clock's band only (HomeView.drawAmbianceTop)
-        fg=Image.open(P+f"{name}-fg.webp").convert("RGBA"); top,bot=int(ct),int(ct+0.82*size)
+        fg=grade(Image.open(P+f"{name}-fg.webp").convert("RGBA"),weather); top,bot=int(ct),int(ct+0.82*size)
         im.alpha_composite(fg.crop((0,top,W,bot)),(0,top))
     d=ImageDraw.Draw(im); fd=ImageFont.truetype(inter,34)
     full=date+"     "+wx; dw=d.textlength(full,font=fd); dx= left if left>=0 else (W-dw)/2
@@ -141,4 +168,7 @@ if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
     render("day","ecran-day-cesoir.jpg",picks=True)                 # Canal+ focused: tonight on Canal+
     render("day","ecran-day-cesoir-mix.jpg",picks=True,focus=5)     # YouTube focused: the mix
-    render_lights("night","ecran-ruban.jpg",row=5,off_delay=5)                        # OK held on the bulb: the LED strip's panel
+    render_lights("night","ecran-ruban.jpg",row=5,off_delay=5)
+    render("day","ecran-pluie.jpg",t="14:32",wx="🌧 9° Pluie",weather="rain")          # the same mountain in the weather
+    render("dawn","ecran-brouillard.jpg",t="08:10",wx="🌫 3° Brouillard",weather="fog")
+    render("night","ecran-neige.jpg",t="22:15",wx="❄ -1° Neige",weather="snow")                        # OK held on the bulb: the LED strip's panel

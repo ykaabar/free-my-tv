@@ -183,7 +183,11 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   `assets/scenes` (the same frame, aligned to the pixel, so only the light changes, in an 8 s fade: dawn from 45 min
   before sunrise to 1 h 30 after, day, sunset from 1 h before sunset to 40 min after, then night;
   `HomeView.sceneFor`, credits in `CREDITS.txt`), each with a blurred `-glass.jpg` for the clock and a `-fg.webp`
-  cut-out (one outline for the four: the summit crosses the big clock, as on iOS); mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
+  cut-out (one outline for the four: the summit crosses the big clock, as on iOS);
+  the weather over it (`HomeView.wxKind`, from Open-Meteo's code and the rain now): cloudy, fog, rain, snow and storm
+  grade the photo, its cut-out and the plain clock glass (`graded`), veil the sky or the valley (`drawWeatherVeils`),
+  and rain and snow fall in their own layer, redrawn alone on each frame and hidden under the drawer (`drawWeather`;
+  60 drops on the older TVs, 120 elsewhere); mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
   clock is Antonio Light (`Ui.clock`) in glass (after couch-tv, MIT), placed per photo in `SCENE_AT`; the date and
   weather sit above it, today's line (or tonight's picks, with the sparkles button) above the apps, which use the glass
   design's row. **Design rule from the owner: every change to this screen updates the design canvas's "Écran actuel"

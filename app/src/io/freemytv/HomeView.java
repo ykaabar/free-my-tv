@@ -88,7 +88,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final long TOAST_MS = 6000, FADE_MS = 800;
     /** Blur radii of the shadow and shadowDeep paints (Shadows needs them to draw the same blur on older TVs). */
     private static final float SHADOW_BLUR = 26, DEEP_BLUR = 30;
-    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7, PANEL = 8;
+    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7, PANEL = 8, WEATHER = 9;
     private static final int Z_STATUS = 0, Z_HERO = 1, Z_SHELF = 2, Z_DRAWER = 3;
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
     // Light design (the L_ constants): title, tab bar, three recommendation cards and the shelf.
@@ -125,7 +125,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         @Override public boolean clickable(int id) { return (id - 1) / 1000 != WIDGETS || (id - 1) % 1000 == 3; }   // the photo opens
     });
     private final RectF a11yRect = new RectF();
-    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer, lightsLayer;
+    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer, lightsLayer, weatherLayer;
     private int zone = Z_SHELF;
 
     // Night look (like Apple's "Automatic" appearance): darker from sunset to sunrise, with a 2 s transition.
@@ -343,6 +343,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 case DRAWER: drawDrawer(c); break;
                 case SHEET: drawSheet(c); break;
                 case PANEL: drawLightsPanel(c); break;
+                case WEATHER: drawWeather(c); break;
                 default: drawToast(c); break;
             }
             scene.setOffset(0, 0);
@@ -395,6 +396,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         tvInputs = (TvInputManager) a.getSystemService(Context.TV_INPUT_SERVICE);
         setFocusable(true);
         sky = new Layer(a, SKY);
+        weatherLayer = new Layer(a, WEATHER);   // rain or snow over the scenery, redrawn alone on every frame
         heroLayer = new Layer(a, HERO);
         status = new Layer(a, STATUS);
         platter = new Layer(a, PLATTER);
@@ -411,7 +413,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // (without them every frame replayed the whole photo and the scenery).
         boolean layers = !Ui.LEGACY || HomeMode.FIRE;
         for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer}) v.setLayerType(layers ? LAYER_TYPE_HARDWARE : LAYER_TYPE_NONE, null);
-        for (View v : new View[] {sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer, toastLayer}) {
+        for (View v : new View[] {sky, weatherLayer, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer, toastLayer}) {
             v.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);   // TalkBack reads the items (Spoken)
             addView(v);
         }
@@ -580,6 +582,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         int width = MeasureSpec.getSize(widthSpec), height = MeasureSpec.getSize(heightSpec);
         float kk = width / 1920f;
         measure(sky, width, height);
+        measure(weatherLayer, width, height);
         measure(heroLayer, width, Math.round(860 * kk));
         measure(status, Math.round(1160 * kk), Math.round(240 * kk));
         // Sized to what they draw (the glass and its shadow; the grown tiles and their shadows): smaller layers are
@@ -601,6 +604,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         int width = r - l, height = b - t;
         float kk = width / 1920f;
         sky.layout(0, 0, width, height);
+        weatherLayer.layout(0, 0, width, height);
         place(heroLayer, 0, 0);
         place(status, width - status.getMeasuredWidth(), 0);
         place(platter, 0, Math.round(750 * kk));
@@ -746,6 +750,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean photoFading = tickPhoto(up);
         boolean ambFading = tickAmbiance(up);
         ambLift.target = ambPicks() ? 1 : 0;
+        if (tickWeather(dt)) weatherLayer.invalidate();
         heroMoving |= ambLift.step(dt) | (ambFading && ambFg != null);   // the cut-out fades with the light
 
         if (drawerMoving || sheetMoving || motionDirty) updateMotion();
@@ -3859,7 +3864,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambFallback = new LinearGradient(0, 0, 0, h, new int[] {0xFF22344A, 0xFF4A5560, 0xFF6E6152, 0xFF262624, 0xFF0F1113},
                     new float[] {0, 0.38f, 0.62f, 0.82f, 1}, Shader.TileMode.CLAMP);
         }
-        android.graphics.ColorFilter v = veil(Math.max(0.62f * Ui.clamp(drawer.value), ambDim()), 0xFF000000);
+        android.graphics.ColorFilter v = graded(Math.max(0.62f * Ui.clamp(drawer.value), ambDim()));
         float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen);
         if (ambNow == null || (e < 1 && ambOld == null)) {
             fill.setColorFilter(v);
@@ -3877,6 +3882,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         fill.setShader(ambShade);
         c.drawRect(0, 0, w, h * 0.58f, fill);
         fill.setShader(null);
+        drawWeatherVeils(c);
     }
 
     /** After 9 pm a photo dims a little (the night one is dark already). */
@@ -3913,7 +3919,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             float sy = (float) ambFg.getHeight() / h;
             ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
             ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
-            ambFgPaint.setColorFilter(ambDim() > 0 ? veil(ambDim(), 0xFF000000) : null);
+            ambFgPaint.setColorFilter(graded(ambDim()));   // the cut-out in the same light as the photo behind
             // One light to the next: the old cut-out stays whole under the new one fading in (the same outline), so
             // the clock never shows through the summit halfway.
             if (ambFadeAt != 0 && ambFgOld != null) {
@@ -3972,7 +3978,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         if (ambFrostShader != null) {
             aClock.setShader(frostShader(ambFrostShader, ambFrost));
-            aClock.setColorFilter(fill == 1 ? clockBright : fill == 2 ? clockDark : fill == 3 ? clockLight : fill == 0 ? null : (ambTopLight ? clockDark : clockLight));
+            aClock.setColorFilter(fill == 1 ? clockBright : fill == 2 ? clockDark : fill == 3 ? clockLight : fill == 0 ? graded(0) : (ambTopLight ? clockDark : clockLight));   // plain glass takes the weather's light too
             aClock.setColor(0xFFFFFFFF);
             aClock.setAlpha(fill == 2 ? 204 : fill == 1 ? 230 : 255);
         } else {
@@ -4602,5 +4608,154 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             lpBox.inset(-7 * k, -7 * k);
             c.drawRoundRect(lpBox, 31 * k, 31 * k, lpRing);
         }
+    }
+
+    // MARK: - Weather over the scenery (Ambience by time of day)
+
+    /** The weather the mountain shows: clear, cloudy, fog, rain, snow, storm (Open-Meteo's code, and the rain now). */
+    private static final int WX_CLEAR = 0, WX_CLOUDY = 1, WX_FOG = 2, WX_RAIN = 3, WX_SNOW = 4, WX_STORM = 5;
+    // Per weather: saturation, brightness, and a colour the photo leans towards (with how much).
+    private static final float[] WX_SAT = {1, 0.62f, 0.5f, 0.5f, 0.6f, 0.42f};
+    private static final float[] WX_BRIGHT = {1, 0.9f, 0.97f, 0.78f, 1.0f, 0.64f};
+    private static final int[] WX_TINT = {0, 0xFF8A939C, 0xFFB4BCC4, 0xFF5A6878, 0xFFDCE6F2, 0xFF3A4250};
+    private static final float[] WX_TINT_AMOUNT = {0, 0.08f, 0.2f, 0.12f, 0.14f, 0.15f};
+
+    private int gradedKey = -1;
+    private android.graphics.ColorFilter gradedFilter;
+    private LinearGradient wxTop, wxBottom;
+    private int wxVeilsFor = -1;
+    private final Paint wxPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private float[] wxX, wxY, wxV, wxLen, wxLines;
+    private boolean wxShown;
+    private int wxLastKind = -1;
+    private float wxTime;
+
+    private int wxKind() {
+        if (!amb || ambScene < 0) return WX_CLEAR;    // only the mountain: the other sources are real photos
+        HomeData.Weather wx = data.weather;
+        int code = wx.code;
+        if ((code >= 71 && code <= 77) || code == 85 || code == 86) return WX_SNOW;
+        if (code >= 95) return WX_STORM;
+        if (wx.raining || (code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return WX_RAIN;
+        if (code == 45 || code == 48) return WX_FOG;
+        if (code == 3) return WX_CLOUDY;
+        return WX_CLEAR;
+    }
+
+    /** The photo's colour for the weather, then the drawer's (or the late evening's) veil: one filter, cached. */
+    private android.graphics.ColorFilter graded(float veilAmount) {
+        int kind = wxKind();
+        if (kind == WX_CLEAR) return veil(veilAmount, 0xFF000000);
+        int key = kind * 1000 + Math.round(veilAmount * 255);
+        if (key == gradedKey) return gradedFilter;
+        android.graphics.ColorMatrix m = new android.graphics.ColorMatrix();
+        m.setSaturation(WX_SAT[kind]);
+        float b = WX_BRIGHT[kind], a = WX_TINT_AMOUNT[kind], keep = (1 - a) * b;
+        int t = WX_TINT[kind];
+        m.postConcat(new android.graphics.ColorMatrix(new float[] {
+            keep, 0, 0, 0, ((t >> 16) & 255) * a,
+            0, keep, 0, 0, ((t >> 8) & 255) * a,
+            0, 0, keep, 0, (t & 255) * a,
+            0, 0, 0, 1, 0}));
+        if (veilAmount > 0.002f) {
+            float k2 = 1 - veilAmount;
+            m.postConcat(new android.graphics.ColorMatrix(new float[] {k2, 0, 0, 0, 0, 0, k2, 0, 0, 0, 0, 0, k2, 0, 0, 0, 0, 0, 1, 0}));
+        }
+        gradedKey = key;
+        return gradedFilter = new android.graphics.ColorMatrixColorFilter(m);
+    }
+
+    /** Fog in the valley; a grey sky for clouds, rain and storms; a pale one for snow. */
+    private void drawWeatherVeils(Canvas c) {
+        int kind = wxKind();
+        if (kind == WX_CLEAR) return;
+        if (wxVeilsFor != kind * 10000 + h) {
+            wxVeilsFor = kind * 10000 + h;
+            int top = kind == WX_SNOW ? 0x40E0E8F0 : kind == WX_FOG ? 0x30C8D0D8 : kind == WX_STORM ? 0x80404852 : 0x66505862;
+            wxTop = new LinearGradient(0, 0, 0, h * 0.5f, top, top & 0x00FFFFFF, Shader.TileMode.CLAMP);
+            wxBottom = kind == WX_FOG ? new LinearGradient(0, h * 0.42f, 0, h * 0.86f, 0x00C8D0D8, 0x9CC8D0D8, Shader.TileMode.CLAMP) : null;
+        }
+        fill.setColor(0xFF000000);
+        fill.setAlpha(Math.round(255 * (1 - 0.62f * Ui.clamp(drawer.value))));
+        fill.setShader(wxTop);
+        c.drawRect(0, 0, w, h * 0.5f, fill);
+        if (wxBottom != null) {
+            fill.setShader(wxBottom);
+            c.drawRect(0, h * 0.42f, w, h, fill);
+        }
+        fill.setShader(null);
+        fill.setAlpha(255);
+    }
+
+    /** Moves the rain or the snow; true while there's something to draw (or to clear once). */
+    private boolean tickWeather(float dt) {
+        int kind = wxKind();
+        if (kind != wxLastKind) {    // the weather changed (or the scene): the photo and its cut-out in the new light
+            wxLastKind = kind;
+            sky.invalidate();
+            heroLayer.invalidate();
+        }
+        boolean want = (kind == WX_RAIN || kind == WX_STORM || kind == WX_SNOW) && drawer.value < 0.98f && w > 0;
+        if (!want) {
+            if (!wxShown) return false;
+            wxShown = false;
+            return true;    // one last frame, empty
+        }
+        boolean snow = kind == WX_SNOW;
+        if (wxX == null) {
+            int n = Ui.LEGACY && !HomeMode.FIRE ? 60 : 120;    // the older TVs' GPUs get fewer
+            wxX = new float[n];
+            wxY = new float[n];
+            wxV = new float[n];
+            wxLen = new float[n];
+            wxLines = new float[n * 4];
+            java.util.Random r = new java.util.Random(7);
+            for (int i = 0; i < n; i++) {
+                wxX[i] = r.nextFloat() * w;
+                wxY[i] = r.nextFloat() * h;
+                wxV[i] = r.nextFloat();      // 0-1: each drop's speed and size, scaled when drawn
+                wxLen[i] = r.nextFloat() * 6.28f;
+            }
+        }
+        wxTime += dt;
+        for (int i = 0; i < wxX.length; i++) {
+            float v = snow ? (50 + 70 * wxV[i]) * k : (1100 + 450 * wxV[i]) * k;
+            wxY[i] += v * dt;
+            wxX[i] += snow ? (float) Math.sin(wxTime * 0.9f + wxLen[i]) * 22 * k * dt : v * 0.16f * dt;
+            if (wxY[i] > h + 40 * k) {
+                wxY[i] = -40 * k;
+                wxX[i] = ((wxX[i] * 7919 + 1543 * k) % (w * 1.15f)) - (snow ? 0 : 0.15f * w);
+            }
+            if (wxX[i] > w + 20 * k) wxX[i] -= w + 40 * k;
+        }
+        wxShown = true;
+        return true;
+    }
+
+    private void drawWeather(Canvas c) {
+        if (!wxShown || wxX == null) return;
+        int kind = wxKind();
+        float a = 1 - Ui.clamp(drawer.value);
+        if (kind == WX_SNOW) {
+            wxPaint.setStyle(Paint.Style.FILL);
+            wxPaint.setColor(0xFFFFFFFF);
+            for (int i = 0; i < wxX.length; i++) {
+                wxPaint.setAlpha(Math.round((110 + 90 * wxV[i]) * a));
+                c.drawCircle(wxX[i], wxY[i], (1.8f + 2.6f * wxV[i]) * k, wxPaint);
+            }
+            return;
+        }
+        wxPaint.setStyle(Paint.Style.STROKE);
+        wxPaint.setStrokeWidth(1.6f * k);
+        wxPaint.setColor(kind == WX_STORM ? 0xFFD8E0EA : 0xFFE8EEF4);
+        wxPaint.setAlpha(Math.round((kind == WX_STORM ? 80 : 60) * a));
+        for (int i = 0; i < wxX.length; i++) {
+            float len = (26 + 22 * wxV[i]) * k;
+            wxLines[i * 4] = wxX[i];
+            wxLines[i * 4 + 1] = wxY[i];
+            wxLines[i * 4 + 2] = wxX[i] - len * 0.16f;
+            wxLines[i * 4 + 3] = wxY[i] - len;
+        }
+        c.drawLines(wxLines, wxPaint);
     }
 }
