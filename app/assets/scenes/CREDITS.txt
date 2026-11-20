@@ -1,6 +1,7 @@
 Ambiance backgrounds: one mountain in four lights (night, dawn, day, sunset), chosen by the sun where the TV is.
-Variants of one picture made by the owner with an AI image editor (Gemini), then aligned to the day picture to the
-pixel (tools: OpenCV) and brought to 1920 × 1080. Source of the original picture: to be credited here.
+Original photo: Daniel Leone, on Unsplash, under the Unsplash License (free to use, copy and modify; not to be
+sold as it is). Its four lights are variants made by the owner with an AI image editor (Gemini), aligned to the
+day one to the pixel (OpenCV) and brought to 1920 × 1080.
 The -glass.jpg files are blurred, brightened copies for the clock's glass.
 
 The clock's layout over each photo (glass fill, rim, sheen, shadow) follows couch-tv's (github.com/Seagey/couch-tv, MIT).
