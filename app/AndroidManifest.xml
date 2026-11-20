@@ -160,6 +160,22 @@
                 android:resource="@xml/remote_key_service" />
         </service>
 
+        <!-- A test, turned on by hand with adb: logs which remote keys reach a key filter (Home's long press for the
+             LED strip's panel). Its own process, like RemoteKeyService. -->
+        <service
+            android:name=".KeyProbeService"
+            android:process=":keys"
+            android:exported="true"
+            android:label="Free My TV (test)"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/key_probe_service" />
+        </service>
+
         <!-- Fire TV only: Amazon's launcher stays the home screen, so this opens ours when it comes to the front. -->
         <service
             android:name=".FireHomeService"
