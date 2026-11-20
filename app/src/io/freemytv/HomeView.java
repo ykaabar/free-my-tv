@@ -446,6 +446,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         running = true;
         checkStyle();
         if (amb && ambNow == null) nextAmbiancePhoto();
+        ambLift.snap(ambPicks() ? 1 : 0);   // coming back to the home screen: already in place
         makeLightButtons();
         layoutLight();
         checkNight(false);
@@ -744,6 +745,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean nightMoving = tickNight(up);
         boolean photoFading = tickPhoto(up);
         boolean ambFading = tickAmbiance(up);
+        ambLift.target = ambPicks() ? 1 : 0;
+        heroMoving |= ambLift.step(dt) | (ambFading && ambFg != null);   // the cut-out fades with the light
 
         if (drawerMoving || sheetMoving || motionDirty) updateMotion();
         // Opening and closing the drawer only moves the cached layers: redrawing the glass on every frame made the TV
@@ -3502,7 +3505,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private boolean ambTopLight, ambBottomLight;    // the shown photo where the clock and the dock sit
     private boolean ambLate;                        // after 9 pm: the scene dims a little
     private long ambFadeAt, ambNextAt;
-    private float ambFadeLen = AMB_FADE;            // shorter for the first photo: nothing to cross-fade from
+    private float ambFadeLen = AMB_FADE;
+    /** "Tonight" shown: the date and the clock rise to make room for the cards (0 resting, 1 risen). */
+    private final Spring ambLift = new Spring(0.5f, 1f, 0);
+    private static final float AMB_LIFT = 110;
+    private float ambShiftY;                        // the clock's glass follows it while it's risen            // shorter for the first photo: nothing to cross-fade from
     // The last scene, decoded: the home screen built again (the activity recreated) shows it at once.
     private static Bitmap sceneCachePhoto, sceneCacheGlass, sceneCacheFg;
     private static String sceneCacheKey = "";
@@ -3880,6 +3887,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** The frosted copy of the photo, lined up with the photo on screen (it's 1/6 of its size). */
     private BitmapShader frostShader(BitmapShader shader, Bitmap frost) {
         ambMatrix.setScale((float) w / frost.getWidth(), (float) h / frost.getHeight());
+        ambMatrix.postTranslate(0, ambShiftY);
         shader.setLocalMatrix(ambMatrix);
         return shader;
     }
@@ -3890,12 +3898,18 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float[] at = ambScene >= 0 ? SCENE_AT[ambScene] : SCENE_AT[0];
         boolean left = at[3] >= 0;
         float x = left ? at[3] * k : w / 2f;
+        float lift = ambLift.value * AMB_LIFT * k;
+        c.save();
+        c.translate(0, -lift);
+        ambShiftY = lift;    // the glass shows what's really behind the risen clock
         drawAmbianceDate(c, x, at[0] * k, left);
         drawGlassClock(c, at, left);
-        if (ambFg != null) {
+        ambShiftY = 0;
+        c.restore();
+        if (ambFg != null && lift < at[2] * 0.5f * k) {   // risen past the summit: nothing left to cross
             // The scenery in front of the clock: the peaks, the volcano and the hills cross the digits. Only the clock's
             // band is drawn (elsewhere the cut-out is the photo itself): a third of the work on every frame.
-            float top = at[1] * k, bottom = (at[1] + 0.82f * at[2]) * k;
+            float top = at[1] * k - lift, bottom = (at[1] + 0.82f * at[2]) * k - lift;
             float sy = (float) ambFg.getHeight() / h;
             ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
             ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);

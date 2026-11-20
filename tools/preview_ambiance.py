@@ -12,6 +12,7 @@ APPS=[("ATLAS PRO",(20,20,24)),("CANAL+",(0,0,0)),("TF1+",(29,59,209)),("prime v
 SERVICES={"CANAL+":"CANAL+","TF1+":"TF1+","prime video":"Prime Video","Apple tv":"Apple TV"}
 def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):
     dt,ct,size,left,dark,fillm,cut=SC[name]; W,H=1920,1080
+    if picks: dt-=110; ct-=110   # "Tonight" shown: the date and the clock rise (HomeView.AMB_LIFT)
     im=Image.open(P+f"{name}.jpg").convert("RGBA")
     glass=Image.open(P+f"{name}-glass.jpg").convert("RGBA").resize((W,H))
     if fillm==1: glass=ImageEnhance.Brightness(glass).enhance(1.1)
