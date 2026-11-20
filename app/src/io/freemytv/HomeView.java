@@ -4302,7 +4302,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // MARK: - The LED strip's panel (OK held on the light button)
 
     private boolean lightsOpen, lightsOkDown;
-    private int lightsRow, lightsSwatch, lightsMood;   // the row focused (0 switch, 1 brightness, 2 colour, 3 moods)
+    private int lightsRow, lightsSwatch, lightsMood;   // the row focused (0 switch, 1 brightness, 2 colour, 3 moods, 4-5 automations)
     private Paint lpTitle, lpSub, lpLabel, lpValue, lpPill, lpPillOn, lpHint;
     private final Paint lpFill = new Paint(Paint.ANTI_ALIAS_FLAG), lpRing = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF lpCard = new RectF(), lpBox = new RectF();
@@ -4310,7 +4310,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private String lpPercent = "";
     private int lpPercentFor = -1;
     // The panel's layout, at 1920 × 1080 (tools/preview_ambiance.py draws the same).
-    private static final float LP_W = 1040, LP_H = 640, LP_PAD = 44;
+    private static final float LP_W = 1040, LP_H = 820, LP_PAD = 44;
 
     private final Lights.Done lightsError = error -> showToast(Ui.tr("A fita de LED não responde: ",
             "The LED strip isn't answering: ", "La tira LED no responde: ") + error);
@@ -4354,7 +4354,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             case KeyEvent.KEYCODE_DPAD_UP:
             case KeyEvent.KEYCODE_DPAD_DOWN: {
                 if (!down) return true;
-                int next = Math.max(0, Math.min(3, lightsRow + (code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)));
+                int next = Math.max(0, Math.min(5, lightsRow + (code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)));
                 if (next != lightsRow) {
                     lightsRow = next;
                     click.move();
@@ -4372,8 +4372,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     if (next != b || !Lights.on(c)) Lights.setBrightness(c, next, lightsError);
                 } else if (lightsRow == 2) {
                     lightsSwatch = Math.max(0, Math.min(Lights.SWATCH_RGB.length - 1, lightsSwatch + dx));
-                } else {
+                } else if (lightsRow == 3) {
                     lightsMood = Math.max(0, Math.min(Lights.MOODS - 1, lightsMood + dx));
+                } else if (lightsRow == 4) {
+                    Lights.setAutoOn(c, dx > 0);
+                } else {
+                    Lights.setAutoOff(c, dx > 0);
                 }
                 click.move();
                 break;
@@ -4390,6 +4394,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 if (lightsRow == 0) Lights.toggle(c, lightsError);
                 else if (lightsRow == 2) Lights.setSwatch(c, lightsSwatch, lightsError);
                 else if (lightsRow == 3) Lights.setMood(c, lightsMood, lightsError);
+                else if (lightsRow == 4) Lights.setAutoOn(c, !Lights.autoOn(c));
+                else if (lightsRow == 5) Lights.setAutoOff(c, !Lights.autoOff(c));
                 click.open();
                 break;
             case KeyEvent.KEYCODE_BACK:
@@ -4428,7 +4434,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         c.drawRect(0, 0, w, h, lpFill);
         float L = (1920 - LP_W) / 2 * k, T = (1080 - LP_H) / 2 * k;
         lpCard.set(L, T, L + LP_W * k, T + LP_H * k);
-        lpFill.setColor(0xF2161A22);
+        lpFill.setColor(0xFA161A22);
         c.drawRoundRect(lpCard, 36 * k, 36 * k, lpFill);
         lpRing.setStrokeWidth(1.5f * k);
         lpRing.setColor(0x26F5F3EE);
@@ -4518,6 +4524,31 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 c.drawRoundRect(lpBox, 22 * k, 22 * k, lpRing);
             }
             px += pw + 14 * k;
+        }
+
+        // Automations: two small switches.
+        lpFill.setColor(0x1AF5F3EE);
+        c.drawRect(x, T + 630 * k, right, T + 631.5f * k, lpFill);
+        drawAutoRow(c, 4, T + 690 * k, x, right, Ui.tr("Acende à noite com a TV", "On in the evening with the TV",
+                "Se enciende de noche con la TV"), Ui.tr("Depois do pôr do sol, 30 min antes se chover",
+                "After sunset, 30 min before if it rains", "Tras la puesta de sol, 30 min antes si llueve"), Lights.autoOn(ctx));
+        drawAutoRow(c, 5, T + 770 * k, x, right, Ui.tr("Apaga com a TV", "Off with the TV", "Se apaga con la TV"), null,
+                Lights.autoOff(ctx));
+    }
+
+    private void drawAutoRow(Canvas c, int row, float y, float x, float right, String label, String hint, boolean on) {
+        lpLabel.setColor(lightsRow == row ? 0xFFF5F3EE : 0xFFC9CBD1);
+        c.drawText(label, x, y, lpLabel);
+        if (hint != null) c.drawText(hint, x, y + 28 * k, lpHint);
+        float cy = y - 8 * k + (hint != null ? 14 * k : 0);
+        lpBox.set(right - 88 * k, cy - 24 * k, right, cy + 24 * k);
+        lpFill.setColor(on ? 0xFFFFB547 : 0x33F5F3EE);
+        c.drawRoundRect(lpBox, 24 * k, 24 * k, lpFill);
+        lpFill.setColor(on ? 0xFF0B0D12 : 0xFFF5F3EE);
+        c.drawCircle(on ? lpBox.right - 24 * k : lpBox.left + 24 * k, cy, 18 * k, lpFill);
+        if (lightsRow == row) {
+            lpBox.inset(-7 * k, -7 * k);
+            c.drawRoundRect(lpBox, 31 * k, 31 * k, lpRing);
         }
     }
 }

@@ -185,6 +185,9 @@ final class German {
             case "Green": return "Grün";
             case "Evening": return "Abend";
             case "Reading": return "Lesen";
+            case "On in the evening with the TV": return "Abends mit dem Fernseher an";
+            case "After sunset, 30 min before if it rains": return "Nach Sonnenuntergang, bei Regen 30 Min. vorher";
+            case "Off with the TV": return "Mit dem Fernseher aus";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";
             case "None": return "Keine";

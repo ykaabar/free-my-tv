@@ -42,9 +42,19 @@ final class Lights {
         return !Config.TUYA_ID.trim().isEmpty() && Config.TUYA_KEY.trim().length() == 16 && !Config.TUYA_IP.trim().isEmpty();
     }
 
+    /** Read again from disk on each call: LightsAuto may change it from the main process (Fire TV). */
+    @SuppressWarnings("deprecation")
     private static SharedPreferences sp(Context c) {
-        return c.getSharedPreferences("lights", Context.MODE_PRIVATE);
+        return c.getSharedPreferences("lights", Context.MODE_MULTI_PROCESS);
     }
+
+    /** LightsAuto: on in the evening when the TV wakes up; off when it goes to standby. */
+    static boolean autoOn(Context c) { return sp(c).getBoolean("autoOn", true); }
+    static boolean autoOff(Context c) { return sp(c).getBoolean("autoOff", true); }
+    static void setAutoOn(Context c, boolean on) { sp(c).edit().putBoolean("autoOn", on).apply(); }
+    static void setAutoOff(Context c, boolean on) { sp(c).edit().putBoolean("autoOff", on).apply(); }
+    static long firedAt(Context c) { return sp(c).getLong("firedAt", 0); }
+    static void setFiredAt(Context c, long at) { sp(c).edit().putLong("firedAt", at).apply(); }
 
     static boolean on(Context c) { return sp(c).getBoolean("on", false); }
     static int brightness(Context c) { return sp(c).getInt("bright", 70); }

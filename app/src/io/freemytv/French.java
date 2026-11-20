@@ -177,6 +177,9 @@ final class French {
             case "Green": return "Vert";
             case "Evening": return "Soirée";
             case "Reading": return "Lecture";
+            case "On in the evening with the TV": return "S'allume le soir avec la TV";
+            case "After sunset, 30 min before if it rains": return "Après le coucher du soleil, 30 min avant s'il pleut";
+            case "Off with the TV": return "S'éteint avec la TV";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";
             case "None": return "Aucun";

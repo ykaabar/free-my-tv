@@ -69,10 +69,10 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
         d.text((W/2,814-34-40),"Nour a 9 mois et 14 jours",font=ft,fill=(255,255,255),anchor="ms")
         d.text((W/2,814-34),"« La simplicité est la sophistication suprême. »  — Léonard de Vinci",font=fq,fill=(240,240,240),anchor="ms")
     im.convert("RGB").save(out,quality=88)
-# The LED strip's panel (OK held on the bulb), same values as HomeView.drawLightsPanel: LP_W 1040, LP_H 640, pad 44
+# The LED strip's panel (OK held on the bulb), same values as HomeView.drawLightsPanel: LP_W 1040, LP_H 820, pad 44
 SWATCHES=[(255,201,138),(243,241,234),(47,75,216),(139,63,217),(229,72,77),(47,179,107)]
 MOODS=["Cinéma","Tamisé","Soirée","Lecture"]
-def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_swatch=2, focus_mood=0):
+def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_swatch=2, focus_mood=0, auto_on=True, auto_off=True):
     render(name, out)
     im=Image.open(out).convert("RGBA"); W,H=im.size
     im.alpha_composite(Image.new("RGBA",(W,H),(0,0,0,0x99)))
@@ -80,9 +80,9 @@ def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_
     def rr(box,radius,fill):   # a see-through fill blends, as on the TV (ImageDraw alone would overwrite)
         layer=Image.new("RGBA",im.size,(0,0,0,0)); ImageDraw.Draw(layer).rounded_rectangle(box,radius=radius,fill=fill)
         im.alpha_composite(layer)
-    L,T=(W-1040)/2,(H-640)/2; R=L+1040-44; x=L+44
-    rr((L,T,L+1040,T+640),36,(22,26,34,242)); d=ImageDraw.Draw(im)
-    d.rounded_rectangle((L,T,L+1040,T+640),radius=36,outline=(70,72,78),width=2)
+    L,T=(W-1040)/2,(H-820)/2; R=L+1040-44; x=L+44
+    rr((L,T,L+1040,T+820),36,(22,26,34,250)); d=ImageDraw.Draw(im)
+    d.rounded_rectangle((L,T,L+1040,T+820),radius=36,outline=(70,72,78),width=2)
     d.text((x,T+80),"Ruban LED",font=F(600,36),fill=(245,243,238),anchor="ls")
     d.text((x,T+116),"Derrière la TV",font=F(400,22),fill=(163,166,174),anchor="ls")
     sw=(R-132,T+50,R,T+120); rr(sw,35,(255,181,71) if on else (245,243,238,51)); d=ImageDraw.Draw(im)
@@ -115,6 +115,15 @@ def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_
         d.text((px+pw/2,top+32+8),n,font=f,fill=(11,13,18) if cur else (245,243,238),anchor="ms")
         if row==3 and i==focus_mood: d.rounded_rectangle((px-7,top-7,px+pw+7,top+71),radius=22,outline=(245,243,238),width=4)
         px+=pw+14
+    rr((x,T+630,R,T+631.5),0,(245,243,238,26)); d=ImageDraw.Draw(im)
+    for r,y,label,hint,val in [(4,T+690,"S'allume le soir avec la TV","Après le coucher du soleil, 30 min avant s'il pleut",auto_on),
+                               (5,T+770,"S'éteint avec la TV",None,auto_off)]:
+        d.text((x,y),label,font=F(500,22),fill=lab(r),anchor="ls")
+        if hint: d.text((x,y+28),hint,font=F(400,18),fill=(163,166,174),anchor="ls")
+        cy=y-8+(14 if hint else 0); box=(R-88,cy-24,R,cy+24)
+        rr(box,24,(255,181,71) if val else (245,243,238,51)); d=ImageDraw.Draw(im)
+        kx=box[2]-24 if val else box[0]+24; d.ellipse((kx-18,cy-18,kx+18,cy+18),fill=(11,13,18) if val else (245,243,238))
+        if row==r: d.rounded_rectangle((box[0]-7,box[1]-7,box[2]+7,box[3]+7),radius=31,outline=(245,243,238),width=4)
     im.convert("RGB").save(out,quality=88)
 if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
