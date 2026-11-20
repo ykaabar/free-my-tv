@@ -522,6 +522,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private void makeLightButtons() {
         lightButtons.clear();
         lightButtons.add(HomeApps.action(HomeApps.SLEEP, "sleep", Ui.tr("Timer", "Sleep timer", "Temporizador"), "bedtime"));
+        if (amb && picksOn()) lightButtons.add(HomeApps.action(HomeApps.PICKS, "picks", Ui.tr("Hoje à noite", "Tonight", "Esta noche"), "sparkles"));
         if (!Prefs.kidMode() && !HomeMode.FIRE) {   // a Fire TV stick has no tuner and no HDMI inputs
             lightButtons.add(HomeApps.action(HomeApps.LIVE_TV, "live", Ui.tr("TV aberta", "Live TV"), "live_tv"));
             lightButtons.add(HomeApps.action(HomeApps.INPUTS, "inputs", Ui.tr("Entradas HDMI", "HDMI Inputs"), "hdmi"));
@@ -1207,10 +1208,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void layoutShelf() {
         int n = shelf.size();
-        if (amb) {
-            layoutBigShelf(n);
-            return;
-        }
+        ambTileShaders = new LinearGradient[n];
+        // Ambiance uses the same row as the glass design (it only looks different), so the apps keep their size.
         float pad = SHELF_PAD * k, gap = TILE_GAP * k, th = L_TILE_H * k;
         float full = (CONTENT_R - MARGIN) * k;
         float tw = Math.min(TILE_MAX_W * k, (full - Math.max(0, n - 1) * gap) / Math.max(1, n));
@@ -2457,6 +2456,16 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             r = tileRects[shelfIndex];
         }
         click.open();
+        if (it.kind == HomeApps.PICKS) {
+            boolean on = !Prefs.ambiancePicks();
+            Prefs.setAmbiancePicks(on);
+            layoutCards();
+            showToast(on ? Ui.tr("« Hoje à noite » aparece.", "Tonight's picks are shown.", "« Esta noche » visible.")
+                    : Ui.tr("« Hoje à noite » escondido.", "Tonight's picks are hidden.", "« Esta noche » oculto."));
+            heroDirty = statusDirty = true;
+            heroLayer.invalidate();
+            return;
+        }
         if (it.kind == HomeApps.SLEEP) {
             int minutes = Sleep.cycle(getContext());
             showToast(minutes == 0 ? Ui.tr("Timer desligado.", "Sleep timer off.", "Temporizador apagado.")
@@ -2991,7 +3000,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      * focus widens the new one while the old one narrows, and the row keeps its total width.
      */
     private void layoutCards() {
-        if (amb) return;   // no picks on the Ambiance screen
+        if (amb) {
+            if (ambPicks()) layoutTonight();
+            return;
+        }
         float top = L_CARDS_TOP * k, ch = L_CARD_H * k, g = L_CARD_GAP * k, tall = L_TALL_W * k;
         float extra = (CONTENT_R - MARGIN) * k - 3 * tall - 2 * g;   // what the wide card has beyond a tall one
         float sum = 0;
@@ -3048,6 +3060,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean none = cards.isEmpty() || !picksOn();
         Backdrop b = none ? null : recs.backdrop(cards.get(Math.min(cardIndex, cards.size() - 1)));
         if (!amb && (none || b != null)) showBackdrop(b);
+        if (amb) ambianceMeta();
         heroDirty = true;
         spoken.focusMoved();    // new picks under the focused card
     }
@@ -3274,7 +3287,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (picksOn() && !amb) drawHeaderClock(c);
         for (int i = 0; i < lightButtons.size(); i++) {
             RectF r = topRects[3 + i];
-            boolean sleeping = lightButtons.get(i).kind == HomeApps.SLEEP && Sleep.at(getContext()) != 0;
+            boolean sleeping = (lightButtons.get(i).kind == HomeApps.SLEEP && Sleep.at(getContext()) != 0)
+                    || (lightButtons.get(i).kind == HomeApps.PICKS && Prefs.ambiancePicks());   // on: orange, like a timer
             float f = Ui.clamp(topFocus[3 + i].value), s = 1 + 0.1f * f, rad = r.width() / 2 * s;
             cell.set(r.centerX() - rad, r.centerY() - rad, r.centerX() + rad, r.centerY() + rad);
             tmp.set(cell);
@@ -3436,8 +3450,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final int[] SCENE_RIM = {0x80FFD7E1, 0x8CFFFFFF, 0x8CFFFFFF, 0x99FFFFFF, 0x8CFFFFFF};
     private static final int[] SCENE_SHADE_TOP = {0x00000000, 0x00000000, 0x6B000C18, 0x00000000, 0x6B321C0C};
 
-    // The dock (1920 × 1080): square icons, gaps and padding, its bottom.
-    private static final float A_ICON = 112, A_ICON_GAP = 26, A_DOCK_PAD_X = 28, A_DOCK_PAD_Y = 22, A_DOCK_BOTTOM = 1034;
+    // Tonight's picks over the shelf, when shown (1920 × 1080): card size and gap.
+    private static final float A_CARD_W = 360, A_CARD_H = 203, A_CARD_GAP = 40;
     private static final long AMB_EVERY = 5 * 60_000L, AMB_FADE = 1500, AMB_RETRY = 60_000L;
     private static final String FALLBACK = "#stand-in";
 
@@ -3490,6 +3504,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambTopLight = ambBottomLight = false;
         }
         if (zone == Z_CARDS || (zone == Z_TOP && topIndex < 3)) zone = Z_SHELF;
+        makeLightButtons();
         layoutShelf();
         layoutLight();
         updateCards();
@@ -3501,7 +3516,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private float grow() {
-        return amb ? 0.16f : FOCUS_GROW;
+        return FOCUS_GROW;
     }
 
     private void makeAmbiancePaints() {
@@ -3841,7 +3856,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE)));
             c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
         }
-        drawAmbianceToday(c);
+        if (ambPicks()) drawTonight(c);
+        else drawAmbianceToday(c);
     }
 
     /** "Wednesday 18 November   ☁ 8° Cloudy", on one line, centered (left-aligned on the Fog scene). */
@@ -3920,7 +3936,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     /** Above the dock: the child's age (and a milestone), then the quote of the day, one line each. */
     private void drawAmbianceToday(Canvas c) {
         long now = System.currentTimeMillis();
-        float cx = w / 2f, base = (A_DOCK_BOTTOM - 2 * A_DOCK_PAD_Y - A_ICON - 34) * k;
+        float cx = w / 2f, base = platterRect.top - 34 * k;
         if (Prefs.daily()) {
             String[] q = Daily.quote(now);
             String key = q[0] + "|" + q[1] + "|" + Ui.language;
@@ -3942,21 +3958,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     // The apps in a glass dock
 
-    private void layoutBigShelf(int n) {
-        float icon = A_ICON * k, gap = A_ICON_GAP * k, padX = A_DOCK_PAD_X * k, padY = A_DOCK_PAD_Y * k;
-        float room = (CONTENT_R - MARGIN) * k - 2 * padX;
-        if (n * icon + (n - 1) * gap > room) icon = (room - (n - 1) * gap) / n;
-        float width = n * icon + Math.max(0, n - 1) * gap, left = (w - width) / 2f;
-        float bottom = A_DOCK_BOTTOM * k, top = bottom - padY - icon;
-        platterRect.set(left - padX, top - padY, left + width + padX, bottom);
-        for (int i = 0; i < n; i++) tileRects[i].set(left + i * (icon + gap), top, left + i * (icon + gap) + icon, top + icon);
-        crispLogos.clear();
-        ambTileShaders = new LinearGradient[n];
-    }
-
     /** The dock's glass: the photo behind it, blurred and darkened, with a thin warm rim and a soft shadow. */
     private void drawGallery(Canvas c) {
-        float r = platterRect.height() / 2 * 0.6f;
+        float r = (TILE_RADIUS + SHELF_PAD) * k;
         tmp.set(platterRect);
         tmp.offset(0, 18 * k);
         shadow.setColor(0x47000000);
@@ -3982,7 +3986,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         c.drawRoundRect(platterRect, r, r, fill);
         border.setColor(0x29FFD2DC);
         c.drawRoundRect(platterRect, r, r, border);
-        if (!ambCredit.isEmpty() && ambFadeAt == 0) c.drawText(ambCredit, CONTENT_R * k, (A_DOCK_BOTTOM + 30) * k, aCredit);
+        if (!ambCredit.isEmpty() && ambFadeAt == 0) c.drawText(ambCredit, CONTENT_R * k, platterRect.bottom + 30 * k, aCredit);
     }
 
     private LinearGradient[] ambTileShaders = new LinearGradient[0];
@@ -3993,7 +3997,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
      */
     private void drawGalleryTile(Canvas c, int i, HomeApps.Item it, float s, float fc) {
         cell.offset(0, -10 * k * fc);
-        float r = cell.width() * 0.225f;
+        float r = TILE_RADIUS * k * s;
         if (fc > 0.01f) {
             tmp.set(cell);
             tmp.offset(0, 14 * k);
@@ -4054,7 +4058,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         bitmapPaint.setAlpha(255);
     }
 
-    /** An app's 16:9 banner whole in a square: the square takes the banner's own background color around it. */
+    /** An app's banner whole in its tile: the tile takes the banner's own background color around it. */
     private void bannerSquare(Canvas c, Bitmap banner, float r) {
         Integer color = bannerColors.get(banner);
         if (color == null) {
@@ -4069,7 +4073,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         fill.setShader(null);
         fill.setColor(color);
         c.drawRoundRect(cell, r, r, fill);
-        float bw = cell.width() * 0.94f, bh = bw * banner.getHeight() / Math.max(1, banner.getWidth());
+        float scale = Math.min(cell.width() * 0.94f / Math.max(1, banner.getWidth()), cell.height() * 0.94f / Math.max(1, banner.getHeight()));
+        float bw = banner.getWidth() * scale, bh = banner.getHeight() * scale;
         tmp.set(cell.centerX() - bw / 2, cell.centerY() - bh / 2, cell.centerX() + bw / 2, cell.centerY() + bh / 2);
         c.drawBitmap(banner, null, tmp, bitmapPaint);
     }
@@ -4091,11 +4096,29 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // Focus: the corner buttons at the top right, the apps at the bottom
 
     private boolean moveAmbiance(int dx, int dy) {
+        int n = ambPicks() ? Math.min(3, cards.size()) : 0;
         switch (zone) {
             case Z_SHELF:
                 if (dy >= 0 || shelf.isEmpty()) return false;
-                zone = Z_TOP;
-                topIndex = 2 + lightButtons.size();
+                if (n > 0) {
+                    zone = Z_CARDS;
+                    cardIndex = Math.min(cardIndex, n - 1);
+                } else {
+                    zone = Z_TOP;
+                    topIndex = 2 + lightButtons.size();
+                }
+                break;
+            case Z_CARDS:
+                if (dx != 0) {
+                    int next = Math.max(0, Math.min(n - 1, cardIndex + dx));
+                    if (next == cardIndex) return true;
+                    cardIndex = next;
+                } else if (dy < 0) {
+                    zone = Z_TOP;
+                    topIndex = 2 + lightButtons.size();
+                } else {
+                    zone = Z_SHELF;
+                }
                 break;
             case Z_TOP:
                 if (dx != 0) {
@@ -4103,7 +4126,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     if (next == topIndex) return true;
                     topIndex = next;
                 } else if (dy > 0) {
-                    zone = Z_SHELF;
+                    if (n > 0) {
+                        zone = Z_CARDS;
+                        cardIndex = Math.min(cardIndex, n - 1);
+                    } else {
+                        zone = Z_SHELF;
+                    }
                 } else {
                     return true;
                 }
@@ -4115,4 +4143,114 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         click.move();
         return true;
     }
+
+    // Tonight's picks over the apps (Ambiance, with the sparkles button on)
+
+    private boolean ambPicks() {
+        return amb && picksOn() && Prefs.ambiancePicks() && !cards.isEmpty();
+    }
+
+    private final String[] ambMeta = {"", "", ""};
+    private Paint aCardTitle, aCardMeta, aCardHead;
+    private LinearGradient ambCardShade;
+
+    private void layoutTonight() {
+        int n = Math.min(3, cards.size());
+        float cw = A_CARD_W * k, ch = A_CARD_H * k, gap = A_CARD_GAP * k;
+        float left = (w - (n * cw + (n - 1) * gap)) / 2f, bottom = platterRect.top - 48 * k;
+        for (int i = 0; i < 3; i++) {
+            float x = left + i * (cw + gap);
+            cardRects[i].set(x, bottom - ch, x + cw, bottom);
+        }
+        heroDirty = true;
+    }
+
+    /** "New season · ★ 7.8 · Prime Video" for each pick, built when the picks change (not while drawing). */
+    private void ambianceMeta() {
+        for (int i = 0; i < 3; i++) {
+            Recs.Pick p = i < cards.size() ? cards.get(i) : null;
+            StringBuilder sb = new StringBuilder();
+            if (p != null) {
+                if (p.fresh == 2) sb.append(Ui.tr("Nova temporada", "New season", "Nueva temporada"));
+                else if (p.fresh == 1) sb.append(Ui.tr("Novo", "New", "Nuevo"));
+                if (p.rating >= 1) {
+                    if (sb.length() > 0) sb.append(" · ");
+                    sb.append("★ ").append(String.format(Ui.locale(), "%.1f", p.rating));
+                }
+                String app = Recs.serviceName(p);
+                if (app != null && !app.isEmpty()) {
+                    if (sb.length() > 0) sb.append(" · ");
+                    sb.append(app);
+                }
+            }
+            ambMeta[i] = sb.toString();
+        }
+        if (amb) layoutCards();
+    }
+
+    private void drawTonight(Canvas c) {
+        if (aCardTitle == null) {
+            aCardTitle = Ui.text(Ui.semibold, 24 * k, 0xFFFFFFFF);
+            aCardMeta = Ui.text(Ui.medium, 18 * k, 0xD9FFFFFF);
+            aCardHead = Ui.text(Ui.semibold, 20 * k, 0xE6FFFFFF);
+            aCardHead.setLetterSpacing(0.12f);
+            aCardHead.setTextAlign(Paint.Align.CENTER);
+            aCardHead.setShadowLayer(14 * k, 0, 2 * k, 0x8C000000);
+            ambCardShade = new LinearGradient(0, 0, 0, 1, 0x00000000, 0xD9000000, Shader.TileMode.CLAMP);
+        }
+        int n = Math.min(3, cards.size());
+        c.drawText(Ui.tr("Hoje à noite", "Tonight", "Esta noche").toUpperCase(Ui.locale()), w / 2f, cardRects[0].top - 22 * k, aCardHead);
+        for (int i = 0; i < n; i++) drawTonightCard(c, i);
+    }
+
+    /** One pick: its picture, its title and line over a shade; focused, it grows a little with a white ring. */
+    private void drawTonightCard(Canvas c, int i) {
+        Recs.Pick p = cards.get(i);
+        RectF base = cardRects[i];
+        float f = Ui.clamp(cardFocus[i].value), s = 1 + 0.06f * cardFocus[i].value;
+        float bw = base.width() * s, bh = base.height() * s, r = 18 * k * s;
+        cell.set(base.centerX() - bw / 2, base.centerY() - bh / 2, base.centerX() + bw / 2, base.centerY() + bh / 2);
+        if (f > 0.01f) {
+            tmp.set(cell);
+            tmp.offset(0, 14 * k);
+            shadowDeep.setColor(Ui.alpha(0xFF000000, 0.45f * f));
+            shadows.draw(c, tmp, r, DEEP_BLUR * k, shadowDeep);
+        }
+        Backdrop b = recs.backdrop(p);
+        Bitmap img = b == null ? null : b.wide != null ? b.wide : b.tall;
+        if (img != null) {
+            ambThumb.set(cell);
+            coverImage(c, img, ambThumb, r);
+        } else {
+            fill.setShader(null);
+            fill.setColor(0xFF22222A);
+            c.drawRoundRect(cell, r, r, fill);
+        }
+        float shadeTop = cell.top + cell.height() * 0.4f;
+        ambMatrix.setScale(1, cell.bottom - shadeTop);
+        ambMatrix.postTranslate(0, shadeTop);
+        ambCardShade.setLocalMatrix(ambMatrix);
+        fill.setShader(ambCardShade);
+        tmp.set(cell.left, shadeTop, cell.right, cell.bottom);
+        c.drawRoundRect(tmp, r, r, fill);
+        fill.setShader(null);
+        float tx = cell.left + 18 * k, room = cell.width() - 36 * k;
+        fitPaint.set(aCardTitle);
+        c.drawText(TextUtils.ellipsize(p.title == null ? "" : p.title, fitPaint, room, TextUtils.TruncateAt.END).toString(),
+                tx, cell.bottom - (ambMeta[i].isEmpty() ? 18 : 44) * k, aCardTitle);
+        if (!ambMeta[i].isEmpty()) {
+            fitPaint.set(aCardMeta);
+            c.drawText(TextUtils.ellipsize(ambMeta[i], fitPaint, room, TextUtils.TruncateAt.END).toString(),
+                    tx, cell.bottom - 16 * k, aCardMeta);
+        }
+        if (f > 0.01f) {
+            float o = 6 * k;
+            tmp.set(cell.left - o, cell.top - o, cell.right + o, cell.bottom + o);
+            ambRing.setColor(Ui.alpha(0xFFFFFFFF, f));
+            ambRing.setStrokeWidth(4 * k);
+            c.drawRoundRect(tmp, r + o, r + o, ambRing);
+        }
+    }
+
+    private final RectF ambThumb = new RectF();
 }

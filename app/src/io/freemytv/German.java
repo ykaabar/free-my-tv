@@ -157,6 +157,8 @@ final class German {
             case "Light": return "Hell";
             case "Dark": return "Dunkel";
             case "Ambience": return "Ambiente";
+            case "Tonight's picks are shown.": return "„Heute Abend“ wird angezeigt.";
+            case "Tonight's picks are hidden.": return "„Heute Abend“ ist ausgeblendet.";
             case "Switching the home screen…": return "Startbildschirm wird gewechselt…";
             case "Going back to the original…": return "Zurück zum Original…";
             case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV ist an: Die Home-Taste öffnet Free My TV.";

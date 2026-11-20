@@ -156,6 +156,8 @@ final class Russian {
             case "Light": return "Светлая";
             case "Dark": return "Тёмная";
             case "Ambience": return "Атмосфера";
+            case "Tonight's picks are shown.": return "«Сегодня вечером» показано.";
+            case "Tonight's picks are hidden.": return "«Сегодня вечером» скрыто.";
             case "Switching the home screen…": return "Меняю главный экран…";
             case "Going back to the original…": return "Возвращаю исходный экран…";
             case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV включён: кнопка «Домой» открывает Free My TV.";

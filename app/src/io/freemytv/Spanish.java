@@ -89,6 +89,8 @@ final class Spanish {
             case "Light": return "Claro";
             case "Dark": return "Oscuro";
             case "Ambience": return "Ambiente";
+            case "Tonight's picks are shown.": return "« Esta noche » visible.";
+            case "Tonight's picks are hidden.": return "« Esta noche » oculto.";
             case "Switching the home screen…": return "Cambiando la pantalla de inicio…";
             case "Going back to the original…": return "Volviendo al original…";
             case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV está activo: el botón Inicio abre Free My TV.";

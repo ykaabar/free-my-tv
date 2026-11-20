@@ -149,6 +149,8 @@ final class French {
             case "Light": return "Clair";
             case "Dark": return "Sombre";
             case "Ambience": return "Ambiance";
+            case "Tonight's picks are shown.": return "« Ce soir » est affiché.";
+            case "Tonight's picks are hidden.": return "« Ce soir » est masqué.";
             case "Switching the home screen…": return "Changement de l'écran d'accueil…";
             case "Going back to the original…": return "Retour à l'original…";
             case "Free My TV is on: the Home button opens Free My TV.": return "Free My TV est actif : le bouton Accueil ouvre Free My TV.";

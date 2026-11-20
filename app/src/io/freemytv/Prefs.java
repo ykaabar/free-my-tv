@@ -118,6 +118,10 @@ final class Prefs {
 
     /** The drawer's "Today" card: the quote of the day. */
     static boolean daily() { return sp().getBoolean("daily", true); }
+
+    /** Ambiance: tonight's picks over the apps (the sparkles button in the corner turns them on and off). */
+    static boolean ambiancePicks() { return sp().getBoolean("ambiancePicks", false); }
+    static void setAmbiancePicks(boolean on) { put("ambiancePicks", on); }
     static void setDaily(boolean on) { put("daily", on); }
 
     /** The age counter: a first name and a "yyyy-MM-dd" birth date, set on the TV ("" = off). Only on the TV. */
