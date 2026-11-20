@@ -191,6 +191,8 @@ final class German {
             case "Right away": return "Sofort";
             case "After ": return "Nach ";
             case "Never": return "Nie";
+            case "Light on": return "An";
+            case "Light off": return "Aus";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";
             case "None": return "Keine";

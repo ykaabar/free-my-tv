@@ -190,6 +190,8 @@ final class Russian {
             case "Right away": return "Сразу";
             case "After ": return "Через ";
             case "Never": return "Никогда";
+            case "Light on": return "Вкл.";
+            case "Light off": return "Выкл.";
             case "Tonight on": return "Сегодня вечером на";
             case "Tonight: apps": return "Сегодня вечером: приложения";
             case "None": return "Нет";

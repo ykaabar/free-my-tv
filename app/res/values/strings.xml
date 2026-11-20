@@ -3,5 +3,5 @@
     <string name="app_name">Free My TV</string>
     <string name="remote_key_service">Lets the app buttons on the remote (Netflix, YouTube, Prime Video, TCL Channel) open the apps you picked in Free My TV, from any app. It only reads those buttons.</string>
     <string name="fire_home_service">On Fire TV, opens the Free My TV home screen when you press Home. It only sees when Amazon\'s home screen comes to the front.</string>
-    <string name="key_probe_service">A test for Free My TV: writes which remote buttons it sees to the log, and changes none of them. Off unless turned on by hand.</string>
+    <string name="lights_key_service">On Fire TV, with an LED strip set up: the remote's Menu button turns the strip on or off, and held, opens its small panel, from any app. It only reads that button, and looks at the screen only to leave Menu to the on-screen keyboard.</string>
 </resources>

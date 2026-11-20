@@ -183,6 +183,8 @@ final class French {
             case "Right away": return "Tout de suite";
             case "After ": return "Après ";
             case "Never": return "Jamais";
+            case "Light on": return "Allumé";
+            case "Light off": return "Éteint";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";
             case "None": return "Aucun";

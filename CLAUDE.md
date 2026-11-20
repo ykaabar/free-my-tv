@@ -199,7 +199,10 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   `Lights.OFF_DELAYS`, the stick held awake until then) and on when it
   wakes in the evening (from sunset, 30 min before when it rains; once per evening while it stays on), from the screen
   broadcasts, in one process only (the main one on Fire TV, kept alive by FireHomeService; `:home` elsewhere), so the
-  `lights` preferences are multi-process. It shows only when `tuya_id`, `tuya_key` and
+  `lights` preferences are multi-process. On Fire TV, `LightsKeyService` (in `:keys`, turned on with FireHomeService)
+  gives the remote's Menu key to the strip from any app: short = on/off, held 0.6 s = a small panel at the bottom
+  (an accessibility overlay), Menu left alone while an on-screen keyboard is up. Amazon keeps Home: a key filter never
+  sees it (tested on Fire OS 8.1.8.5). It shows only when `tuya_id`, `tuya_key` and
   `tuya_ip` are set. `tools/tuya_keys.py` finds them (QR login with the Smart Life app, then a scan of the Wi-Fi); the
   local key follows the TMDB key's rules. The first answer tells the newer data points (20-24) from the older (1-5).
 - The moon button is the sleep timer (`Sleep`): 30/60/90 min, an exact alarm wakes `HomeReceiver`, which presses

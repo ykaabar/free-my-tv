@@ -46,6 +46,8 @@ final class HomeMode {
      */
     static final boolean FIRE = "Amazon".equalsIgnoreCase(Build.MANUFACTURER);
     private static final String FIRE_SERVICE = PKG + "/" + PKG + ".FireHomeService";
+    /** Fire TV, with an LED strip set up: the remote's Menu key opens the strip's popup (LightsKeyService). */
+    private static final String LIGHTS_SERVICE = PKG + "/" + PKG + ".LightsKeyService";
 
     /** Classic Android TV's home screen; its recommendations service crashes on the screensaver while it's off (#11). */
     static final String TV_LAUNCHER = "com.google.android.tvlauncher";
@@ -303,7 +305,10 @@ final class HomeMode {
         }
     }
 
-    /** FireHomeService on or off in the enabled accessibility services (the others, like VoiceView, stay). */
+    /**
+     * FireHomeService (and LightsKeyService, with an LED strip) on or off in the enabled accessibility services (the
+     * others, like VoiceView, stay).
+     */
     private static void fireSecure(Context c, boolean on) throws IOException {
         if (!fireAllowed(c)) {
             throw new IOException(Ui.tr("o Fire TV bloqueia o ADB do próprio app. Uma vez, no computador: ",
@@ -313,15 +318,22 @@ final class HomeMode {
         String current = android.provider.Settings.Secure.getString(r, "enabled_accessibility_services");
         if (current == null) current = "";
         List<String> list = new ArrayList<>();
-        for (String one : current.split(":")) if (!one.isEmpty() && !one.equals(FIRE_SERVICE)) list.add(one);
-        if (on == Arrays.asList(current.split(":")).contains(FIRE_SERVICE)) return;
-        if (on) {
+        List<String> had = Arrays.asList(current.split(":"));
+        List<String> ours = new ArrayList<>();
+        ours.add(FIRE_SERVICE);
+        if (Lights.configured()) ours.add(LIGHTS_SERVICE);
+        for (String one : had) {
+            // KeyProbeService: a test from Nov 2026, gone since; its entry leaves with ours
+            if (!one.isEmpty() && !one.equals(FIRE_SERVICE) && !one.equals(LIGHTS_SERVICE) && !one.endsWith(".KeyProbeService")) list.add(one);
+        }
+        if (on ? had.containsAll(ours) : !had.contains(FIRE_SERVICE) && !had.contains(LIGHTS_SERVICE)) return;
+        if (on && !had.contains(FIRE_SERVICE)) {   // only the first time: adding the strip's service later keeps it
             JSONObject s = state(c);
             try { s.put("accessibilityWasOff", android.provider.Settings.Secure.getInt(r, "accessibility_enabled", 0) != 1); }
             catch (JSONException ignored) {}
             save(c, s);
-            list.add(FIRE_SERVICE);
         }
+        if (on) list.addAll(ours);
         android.provider.Settings.Secure.putString(r, "enabled_accessibility_services", String.join(":", list));
         if (on) android.provider.Settings.Secure.putInt(r, "accessibility_enabled", 1);
         else if (list.isEmpty() && state(c).optBoolean("accessibilityWasOff")) android.provider.Settings.Secure.putInt(r, "accessibility_enabled", 0);
