@@ -7,11 +7,19 @@
 # Optional secret TMDB_KEY: your free themoviedb.org key, for the picks and the screensaver photos.
 # Optional secret UNSPLASH_KEY: your free Unsplash Access Key, for landscapes and animals on the screensaver.
 # Optional secret ICLOUD_ALBUM: the public link of an iCloud shared album, for the photo card in the drawer.
+# Optional secrets TUYA_ID, TUYA_KEY, TUYA_IP, TUYA_VERSION: the LED strip (tools/tuya_keys.py finds them).
+# Edition "family": the build to give to family and friends: the TMDB key only (the picks and the films screensaver);
+# no iCloud album, no LED strip, no Unsplash key (its free tier is meant for one app in testing, 50 requests an hour).
 name: Build the APK
 
 on:
   workflow_dispatch:
     inputs:
+      edition:
+        description: "mine (everything) or family (no album, no LED strip, no Unsplash)"
+        type: choice
+        options: [mine, family]
+        default: mine
       city:
         description: "City shown on the weather card (it can also be changed on the TV)"
         default: ""
@@ -70,7 +78,11 @@ jobs:
           LANGUAGE: ${{ inputs.language }}
           CURRENCY: ${{ inputs.currency }}
           CRYPTO: ${{ inputs.show_crypto }}
+          EDITION: ${{ inputs.edition }}
         run: |
+          if [ "$EDITION" = "family" ]; then
+            ICLOUD_ALBUM=; UNSPLASH_KEY=; TUYA_ID=; TUYA_KEY=; TUYA_IP=; TUYA_VERSION=
+          fi
           cat > config.properties <<EOF
           tmdb_key=${TMDB_KEY}
           unsplash_key=${UNSPLASH_KEY}
@@ -100,6 +112,6 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: FreeMyTV
+          name: FreeMyTV-${{ inputs.edition }}
           path: FreeMyTV.apk
           retention-days: 30

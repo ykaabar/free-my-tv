@@ -77,6 +77,7 @@ final class Prefs {
     static String theme() {
         String v = sp().getString("theme", "auto");
         if (v.equals("ambiance-album") && !Album.configured()) return "ambiance";
+        if (v.equals("ambiance-landscape") && !Nature.hasKey()) return "ambiance";   // a build without Unsplash's key
         return v.equals("light") || v.equals("dark") || v.startsWith("ambiance") ? v : "auto";
     }
 
@@ -110,7 +111,8 @@ final class Prefs {
     /** What the screensaver shows: "nature" (Unsplash), "films" (the picks' images), "both", or "album" (iCloud). */
     static String screensaver() {
         String v = sp().getString("screensaver", "");
-        if (v.equals("nature") || v.equals("films") || v.equals("both")) return v;
+        if ((v.equals("nature") || v.equals("both")) && Nature.hasKey()) return v;
+        if (v.equals("films")) return v;
         if (v.equals("album") && Album.configured()) return v;
         return Nature.hasKey() ? "nature" : "films";
     }

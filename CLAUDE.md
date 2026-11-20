@@ -22,6 +22,9 @@ before you do it, and let them do the taps on the TV.
    - Linux: OpenJDK 17, Android's command-line tools and adb from the package manager, then the same `sdkmanager` line.
    - Windows: WSL, then as on Linux. Or, with no tools but adb: the *Build the APK* workflow on their fork
      (`.github/workflows/apk.yml`), then `adb install -r FreeMyTV.apk` from the downloaded artifact.
+     Its *edition* input: *mine* (every secret) or *family*, the build the owner gives to family and friends: the TMDB
+     key only (picks, the films screensaver, Ambience by time of day); no iCloud album, LED strip or Unsplash key
+     (Unsplash's free tier is for one app in testing, 50 requests an hour); the settings then hide what needs them.
 3. **Settings:** run `./build.sh` once; it creates `config.properties`. Fill in `latitude` and `longitude` (decimal
    degrees) and `city` for their city, `tmdb_region` (two-letter country), `show_crypto`, `currency` and `temperature` to match.
 4. **The TMDB key is theirs and secret.** Ask them to create one (free: themoviedb.org → Settings → API) and paste it

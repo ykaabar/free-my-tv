@@ -773,6 +773,17 @@ public class SettingsActivity extends Activity {
             }
         }
 
+        /** The choices this build can show: Unsplash's photos need its key, "my photos" an iCloud album. */
+        private static List<String> offered(String[] all) {
+            List<String> out = new ArrayList<>();
+            for (String v : all) {
+                if ((v.equals("ambiance-landscape") || v.equals("nature") || v.equals("both")) && !Nature.hasKey()) continue;
+                if (v.endsWith("album") && !Album.configured()) continue;
+                out.add(v);
+            }
+            return out;
+        }
+
         /** Changes the focused row's value one step (OK and → go forward, ← goes back). */
         private void adjust(int dir) {
             if (screen == PICK_APPS) {
@@ -800,17 +811,15 @@ public class SettingsActivity extends Activity {
                     break;
                 }
                 case 2: {
-                    // "Ambience · my photos" only when there's an iCloud album.
-                    int n = Album.configured() ? THEMES.length : THEMES.length - 1;
-                    int at = java.util.Arrays.asList(THEMES).indexOf(Prefs.theme());
-                    Prefs.setTheme(THEMES[(at + dir + n) % n]);
+                    List<String> themes = offered(THEMES);
+                    int n = themes.size(), at = themes.indexOf(Prefs.theme());
+                    Prefs.setTheme(themes.get(((at < 0 ? 0 : at) + dir + n) % n));
                     break;
                 }
                 case SAVER_ROW: {
-                    // "My photos" only when there's an iCloud album.
-                    int n = Album.configured() ? SCREENSAVERS.length : SCREENSAVERS.length - 1;
-                    int at = java.util.Arrays.asList(SCREENSAVERS).indexOf(Prefs.screensaver());
-                    Prefs.setScreensaver(SCREENSAVERS[(at + dir + n) % n]);
+                    List<String> savers = offered(SCREENSAVERS);
+                    int n = savers.size(), at = savers.indexOf(Prefs.screensaver());
+                    Prefs.setScreensaver(savers.get(((at < 0 ? 0 : at) + dir + n) % n));
                     break;
                 }
                 case WEATHER_ROW: Prefs.setWeather(!Prefs.weather()); break;
