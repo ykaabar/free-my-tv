@@ -88,7 +88,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final long TOAST_MS = 6000, FADE_MS = 800;
     /** Blur radii of the shadow and shadowDeep paints (Shadows needs them to draw the same blur on older TVs). */
     private static final float SHADOW_BLUR = 26, DEEP_BLUR = 30;
-    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7;
+    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7, PANEL = 8;
     private static final int Z_STATUS = 0, Z_HERO = 1, Z_SHELF = 2, Z_DRAWER = 3;
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
     // Light design (the L_ constants): title, tab bar, three recommendation cards and the shelf.
@@ -125,7 +125,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         @Override public boolean clickable(int id) { return (id - 1) / 1000 != WIDGETS || (id - 1) % 1000 == 3; }   // the photo opens
     });
     private final RectF a11yRect = new RectF();
-    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer;
+    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer, lightsLayer;
     private int zone = Z_SHELF;
 
     // Night look (like Apple's "Automatic" appearance): darker from sunset to sunrise, with a 2 s transition.
@@ -342,6 +342,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 case TILES: drawTiles(c); break;
                 case DRAWER: drawDrawer(c); break;
                 case SHEET: drawSheet(c); break;
+                case PANEL: drawLightsPanel(c); break;
                 default: drawToast(c); break;
             }
             scene.setOffset(0, 0);
@@ -401,6 +402,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         drawerLayer = new Layer(a, DRAWER);
         sheetLayer = new Layer(a, SHEET);
         toastLayer = new Layer(a, TOAST);
+        lightsLayer = new Layer(a, PANEL);
         // Hardware layers on the GPU: only the one that changed is redrawn; moving, fading and scaling stay cheap.
         // Not on Android 9 to 11: on older GPUs (a Mi Box 3's Mali-450) redrawing and compositing a big layer on every
         // frame cost more than drawing straight to the screen (measured: focus on the picks 33 → 12 ms a frame, the
@@ -408,13 +410,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Fire TV sticks run Android 11 too, on a newer GPU: there the cached layers keep the drawer and the dock smooth
         // (without them every frame replayed the whole photo and the scenery).
         boolean layers = !Ui.LEGACY || HomeMode.FIRE;
-        for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer}) v.setLayerType(layers ? LAYER_TYPE_HARDWARE : LAYER_TYPE_NONE, null);
-        for (View v : new View[] {sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer}) {
+        for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer}) v.setLayerType(layers ? LAYER_TYPE_HARDWARE : LAYER_TYPE_NONE, null);
+        for (View v : new View[] {sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer, toastLayer}) {
             v.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);   // TalkBack reads the items (Spoken)
             addView(v);
         }
         setContentDescription("Free My TV");
         drawerLayer.setVisibility(INVISIBLE);
+        lightsLayer.setVisibility(INVISIBLE);
         for (int i = 0; i < topFocus.length; i++) {
             topFocus[i] = new Spring(0.26f, 0.85f, 0);
             topRects[i] = new RectF();
@@ -533,19 +536,6 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     /** The sleep button's name: "Sleep timer", or what's left ("Standby in 27 min"). */
-    /** "LED strip · Dim": built once per mood, not on every frame. */
-    private String lightLabel() {
-        int mood = Lights.mood(getContext());
-        if (mood != lightLabelMood || lightLabelText == null) {
-            lightLabelMood = mood;
-            lightLabelText = Ui.tr("Fita de LED", "LED strip", "Tira LED") + " · " + Lights.name(mood);
-        }
-        return lightLabelText;
-    }
-
-    private int lightLabelMood = -1;
-    private String lightLabelText;
-
     private String sleepLabel() {
         int left = Sleep.minutesLeft(getContext());
         return left == 0 ? Ui.tr("Timer", "Sleep timer", "Temporizador")
@@ -597,6 +587,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         measure(tiles, width, Math.round(270 * kk));
         measure(drawerLayer, width, Math.round(600 * kk));
         measure(sheetLayer, width, height);
+        measure(lightsLayer, width, height);
         measure(toastLayer, Math.round(1000 * kk), Math.round(220 * kk));
         setMeasuredDimension(width, height);
     }
@@ -615,6 +606,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         place(tiles, 0, Math.round(790 * kk));
         place(drawerLayer, 0, Math.round(470 * kk));
         sheetLayer.layout(0, 0, width, height);
+        lightsLayer.layout(0, 0, width, height);
+        lightsLayer.setPivotX(width / 2f);
+        lightsLayer.setPivotY(height / 2f);
         sheetLayer.setPivotX(width / 2f);
         sheetLayer.setPivotY(height / 2f);
         place(toastLayer, (width - toastLayer.getMeasuredWidth()) / 2, 0);
@@ -2238,6 +2232,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
         if (reordering) return reorderKey(e, down);
         int code = e.getKeyCode();
+        if (lightsOpen) return lightsKey(code, down, e);
         if (down && code != KeyEvent.KEYCODE_DPAD_CENTER && code != KeyEvent.KEYCODE_ENTER
                 && code != KeyEvent.KEYCODE_NUMPAD_ENTER) {
             holdArmed = false;      // another key while OK is held: no move mode
@@ -2268,7 +2263,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                         okDown = true;
                         okHeld = false;
                         handler.removeCallbacks(holdStart);
-                        holdArmed = canReorder() || canTrailer();
+                        holdArmed = canReorder() || canTrailer() || canLightsPanel();
                         if (holdArmed) handler.postDelayed(holdStart, HOLD_MS);
                     } else if (okDown && holdArmed && e.isLongPress()) {
                         onHold();
@@ -2481,20 +2476,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             boolean on = !Prefs.ambiancePicks();
             Prefs.setAmbiancePicks(on);
             layoutCards();
-            showToast(on ? Ui.tr("« Hoje à noite » aparece.", "Tonight's picks are shown.", "« Esta noche » visible.")
-                    : Ui.tr("« Hoje à noite » escondido.", "Tonight's picks are hidden.", "« Esta noche » oculto."));
             heroDirty = statusDirty = true;
             heroLayer.invalidate();
             return;
         }
         if (it.kind == HomeApps.LIGHTS) {
-            int mood = Lights.next(getContext(), error -> {
-                if (error != null) showToast(Ui.tr("A fita de LED não responde: ", "The LED strip isn't answering: ",
-                        "La tira LED no responde: ") + error);
-            });
-            showToast(Ui.tr("Fita de LED: ", "LED strip: ", "Tira LED: ") + Lights.name(mood));
+            Lights.toggle(getContext(), lightsError);
             statusDirty = true;
-            heroLayer.invalidate();
+            status.invalidate();
             return;
         }
         if (it.kind == HomeApps.SLEEP) {
@@ -2533,6 +2522,13 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     /** OK held: on a shelf app, move mode; on a pick, its trailer. */
     private void onHold() {
+        if (canLightsPanel()) {
+            handler.removeCallbacks(holdStart);
+            holdArmed = false;
+            okHeld = true;      // the release toggles nothing
+            openLights();
+            return;
+        }
         if (canReorder()) {
             startReorder();
             return;
@@ -3329,7 +3325,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             RectF r = topRects[3 + i];
             boolean sleeping = (lightButtons.get(i).kind == HomeApps.SLEEP && Sleep.at(getContext()) != 0)
                     || (lightButtons.get(i).kind == HomeApps.PICKS && Prefs.ambiancePicks())   // on: orange, like a timer
-                    || (lightButtons.get(i).kind == HomeApps.LIGHTS && Lights.mood(getContext()) != Lights.OFF);
+                    || (lightButtons.get(i).kind == HomeApps.LIGHTS && Lights.on(getContext()));
             float f = Ui.clamp(topFocus[3 + i].value), s = 1 + 0.1f * f, rad = r.width() / 2 * s;
             cell.set(r.centerX() - rad, r.centerY() - rad, r.centerX() + rad, r.centerY() + rad);
             tmp.set(cell);
@@ -3347,8 +3343,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Symbols.draw(getContext(), c, lightButtons.get(i).symbol, cell.centerX(), cell.centerY(), 27 * k * s,
                     sleeping ? 0xFFFF9F0A : blend(tone(L_INK, 0xEBFFFFFF), L_INK, f));
             if (f > 0.01f) {
-                String label = lightButtons.get(i).kind == HomeApps.SLEEP ? sleepLabel()
-                        : lightButtons.get(i).kind == HomeApps.LIGHTS ? lightLabel() : lightButtons.get(i).label;
+                String label = lightButtons.get(i).kind == HomeApps.SLEEP ? sleepLabel() : lightButtons.get(i).label;
                 float half = lTip.measureText(label) / 2;
                 float x = Math.min(r.centerX(), CONTENT_R * k - half);
                 lTip.setAlpha(Math.round(255 * f));
@@ -4303,4 +4298,226 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private final RectF ambThumb = new RectF();
+
+    // MARK: - The LED strip's panel (OK held on the light button)
+
+    private boolean lightsOpen, lightsOkDown;
+    private int lightsRow, lightsSwatch, lightsMood;   // the row focused (0 switch, 1 brightness, 2 colour, 3 moods)
+    private Paint lpTitle, lpSub, lpLabel, lpValue, lpPill, lpPillOn, lpHint;
+    private final Paint lpFill = new Paint(Paint.ANTI_ALIAS_FLAG), lpRing = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF lpCard = new RectF(), lpBox = new RectF();
+    private LinearGradient lpBar;
+    private String lpPercent = "";
+    private int lpPercentFor = -1;
+    // The panel's layout, at 1920 × 1080 (tools/preview_ambiance.py draws the same).
+    private static final float LP_W = 1040, LP_H = 640, LP_PAD = 44;
+
+    private final Lights.Done lightsError = error -> showToast(Ui.tr("A fita de LED não responde: ",
+            "The LED strip isn't answering: ", "La tira LED no responde: ") + error);
+
+    private boolean canLightsPanel() {
+        return !sheetOpen && zone == Z_TOP && topIndex >= 3 && topIndex - 3 < lightButtons.size()
+                && lightButtons.get(topIndex - 3).kind == HomeApps.LIGHTS;
+    }
+
+    private void openLights() {
+        lightsOpen = true;
+        lightsOkDown = false;
+        lightsRow = 0;
+        lightsSwatch = Math.max(0, Lights.swatch(getContext()));
+        lightsMood = Math.max(0, Lights.mood(getContext()));
+        click.open();
+        lightsLayer.invalidate();
+        lightsLayer.animate().cancel();
+        lightsLayer.setAlpha(0);
+        lightsLayer.setScaleX(0.96f);
+        lightsLayer.setScaleY(0.96f);
+        lightsLayer.setVisibility(VISIBLE);
+        lightsLayer.animate().alpha(1).scaleX(1).scaleY(1).setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator()).withEndAction(null).start();
+    }
+
+    private void closeLights() {
+        lightsOpen = false;
+        click.move();
+        lightsLayer.animate().cancel();
+        lightsLayer.animate().alpha(0).scaleX(0.97f).scaleY(0.97f).setDuration(160)
+                .withEndAction(() -> { if (!lightsOpen) lightsLayer.setVisibility(INVISIBLE); }).start();
+        statusDirty = true;
+        status.invalidate();
+    }
+
+    /** ↑ ↓ rows; ← → the switch, the brightness (10 % steps), the colour and the mood focused; OK applies; Back closes. */
+    private boolean lightsKey(int code, boolean down, KeyEvent e) {
+        Context c = getContext();
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_UP:
+            case KeyEvent.KEYCODE_DPAD_DOWN: {
+                if (!down) return true;
+                int next = Math.max(0, Math.min(3, lightsRow + (code == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)));
+                if (next != lightsRow) {
+                    lightsRow = next;
+                    click.move();
+                }
+                break;
+            }
+            case KeyEvent.KEYCODE_DPAD_LEFT:
+            case KeyEvent.KEYCODE_DPAD_RIGHT: {
+                if (!down) return true;
+                int dx = code == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1;
+                if (lightsRow == 0) {
+                    if (Lights.on(c) != (dx > 0)) Lights.setOn(c, dx > 0, lightsError);
+                } else if (lightsRow == 1) {
+                    int b = Lights.brightness(c), next = Math.max(10, Math.min(100, (b + 5) / 10 * 10 + 10 * dx));
+                    if (next != b || !Lights.on(c)) Lights.setBrightness(c, next, lightsError);
+                } else if (lightsRow == 2) {
+                    lightsSwatch = Math.max(0, Math.min(Lights.SWATCH_RGB.length - 1, lightsSwatch + dx));
+                } else {
+                    lightsMood = Math.max(0, Math.min(Lights.MOODS - 1, lightsMood + dx));
+                }
+                click.move();
+                break;
+            }
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (down) {
+                    if (e.getRepeatCount() == 0) lightsOkDown = true;   // the release of the hold that opened it does nothing
+                    return true;
+                }
+                if (!lightsOkDown) return true;
+                lightsOkDown = false;
+                if (lightsRow == 0) Lights.toggle(c, lightsError);
+                else if (lightsRow == 2) Lights.setSwatch(c, lightsSwatch, lightsError);
+                else if (lightsRow == 3) Lights.setMood(c, lightsMood, lightsError);
+                click.open();
+                break;
+            case KeyEvent.KEYCODE_BACK:
+                if (!down && !e.isCanceled()) closeLights();
+                return true;
+            default:
+                return false;
+        }
+        lightsLayer.invalidate();
+        statusDirty = true;
+        status.invalidate();
+        return true;
+    }
+
+    private void drawLightsPanel(Canvas c) {
+        if (lpTitle == null) {
+            lpTitle = Ui.text(Ui.semibold, 36 * k, 0xFFF5F3EE);
+            lpSub = Ui.text(Ui.regular, 22 * k, 0xFFA3A6AE);
+            lpLabel = Ui.text(Ui.medium, 22 * k, 0xFFC9CBD1);
+            lpValue = Ui.text(Ui.medium, 22 * k, 0xFFC9CBD1);
+            lpValue.setTextAlign(Paint.Align.RIGHT);
+            lpHint = Ui.text(Ui.regular, 18 * k, 0xFFA3A6AE);
+            lpPill = Ui.text(Ui.medium, 22 * k, 0xFFF5F3EE);
+            lpPill.setTextAlign(Paint.Align.CENTER);
+            lpPillOn = Ui.text(Ui.semibold, 22 * k, 0xFF0B0D12);
+            lpPillOn.setTextAlign(Paint.Align.CENTER);
+            lpRing.setStyle(Paint.Style.STROKE);
+            lpRing.setColor(0xFFF5F3EE);
+            lpRing.setStrokeWidth(4 * k);
+        }
+        Context ctx = getContext();
+        boolean on = Lights.on(ctx);
+        int bright = Lights.brightness(ctx), swatch = Lights.swatch(ctx), mood = Lights.mood(ctx);
+        lpFill.setShader(null);
+        lpFill.setColor(0x99000000);
+        c.drawRect(0, 0, w, h, lpFill);
+        float L = (1920 - LP_W) / 2 * k, T = (1080 - LP_H) / 2 * k;
+        lpCard.set(L, T, L + LP_W * k, T + LP_H * k);
+        lpFill.setColor(0xF2161A22);
+        c.drawRoundRect(lpCard, 36 * k, 36 * k, lpFill);
+        lpRing.setStrokeWidth(1.5f * k);
+        lpRing.setColor(0x26F5F3EE);
+        c.drawRoundRect(lpCard, 36 * k, 36 * k, lpRing);
+        lpRing.setColor(0xFFF5F3EE);
+        lpRing.setStrokeWidth(4 * k);
+        float x = L + LP_PAD * k, right = lpCard.right - LP_PAD * k;
+
+        // The switch, beside the title.
+        c.drawText(Ui.tr("Fita de LED", "LED strip", "Tira LED"), x, T + 80 * k, lpTitle);
+        c.drawText(Ui.tr("Atrás da TV", "Behind the TV", "Detrás de la TV"), x, T + 116 * k, lpSub);
+        lpBox.set(right - 132 * k, T + 50 * k, right, T + 120 * k);
+        lpFill.setColor(on ? 0xFFFFB547 : 0x33F5F3EE);
+        c.drawRoundRect(lpBox, 35 * k, 35 * k, lpFill);
+        lpFill.setColor(on ? 0xFF0B0D12 : 0xFFF5F3EE);
+        c.drawCircle(on ? lpBox.right - 35 * k : lpBox.left + 35 * k, lpBox.centerY(), 28 * k, lpFill);
+        if (lightsRow == 0) {
+            lpBox.inset(-9 * k, -9 * k);
+            c.drawRoundRect(lpBox, 44 * k, 44 * k, lpRing);
+        }
+
+        // Brightness.
+        float y = T + 190 * k;
+        lpLabel.setColor(lightsRow == 1 ? 0xFFF5F3EE : 0xFFC9CBD1);
+        c.drawText(Ui.tr("Brilho", "Brightness", "Brillo"), x, y, lpLabel);
+        if (bright != lpPercentFor) {
+            lpPercentFor = bright;
+            lpPercent = bright + " %";
+        }
+        c.drawText(lpPercent, right, y, lpValue);
+        float barY = y + 30 * k, barW = right - x;
+        lpBox.set(x, barY, right, barY + 18 * k);
+        lpFill.setColor(0x1FF5F3EE);
+        c.drawRoundRect(lpBox, 9 * k, 9 * k, lpFill);
+        if (lpBar == null) lpBar = new LinearGradient(0, 0, 1, 0, 0xFF8A5A1E, 0xFFFFB547, Shader.TileMode.CLAMP);
+        ambMatrix.setScale(barW, 1);
+        ambMatrix.postTranslate(x, 0);
+        lpBar.setLocalMatrix(ambMatrix);
+        float knob = x + barW * bright / 100f;
+        lpBox.set(x, barY, Math.max(x + 18 * k, knob), barY + 18 * k);
+        lpFill.setShader(lpBar);
+        c.drawRoundRect(lpBox, 9 * k, 9 * k, lpFill);
+        lpFill.setShader(null);
+        lpFill.setColor(0xFFF5F3EE);
+        knob = Math.max(x + 18 * k, Math.min(right - 18 * k, knob));
+        c.drawCircle(knob, barY + 9 * k, 18 * k, lpFill);
+        if (lightsRow == 1) {
+            c.drawCircle(knob, barY + 9 * k, 26 * k, lpRing);
+            c.drawText(Ui.tr("← → para ajustar", "← → to adjust", "← → para ajustar"), x, barY + 58 * k, lpHint);
+        }
+
+        // Colours: the one in use has a dark inner ring, the focused one a white outer ring.
+        y = T + 340 * k;
+        lpLabel.setColor(lightsRow == 2 ? 0xFFF5F3EE : 0xFFC9CBD1);
+        c.drawText(Ui.tr("Cor", "Colour", "Color"), x, y, lpLabel);
+        if (lightsRow == 2) c.drawText(Lights.swatchName(lightsSwatch), right, y, lpValue);
+        float cy = y + 60 * k;
+        for (int i = 0; i < Lights.SWATCH_RGB.length; i++) {
+            float cx = x + 36 * k + i * 90 * k;
+            lpFill.setColor(Lights.SWATCH_RGB[i]);
+            c.drawCircle(cx, cy, 36 * k, lpFill);
+            if (i == swatch && on && mood != Lights.EVENING) {
+                lpRing.setColor(0xFF0B0D12);
+                lpRing.setStrokeWidth(3 * k);
+                c.drawCircle(cx, cy, 30 * k, lpRing);
+                lpRing.setColor(0xFFF5F3EE);
+                lpRing.setStrokeWidth(4 * k);
+            }
+            if (lightsRow == 2 && i == lightsSwatch) c.drawCircle(cx, cy, 45 * k, lpRing);
+        }
+
+        // Moods: the one in use filled, the focused one ringed.
+        y = T + 500 * k;
+        lpLabel.setColor(lightsRow == 3 ? 0xFFF5F3EE : 0xFFC9CBD1);
+        c.drawText(Ui.tr("Ambientes", "Moods", "Ambientes"), x, y, lpLabel);
+        float px = x, top = y + 22 * k;
+        for (int i = 0; i < Lights.MOODS; i++) {
+            String name = Lights.moodName(i);
+            boolean current = on && i == mood;
+            float pw = (current ? lpPillOn : lpPill).measureText(name) + 56 * k;
+            lpBox.set(px, top, px + pw, top + 64 * k);
+            lpFill.setColor(current ? 0xFFF5F3EE : 0x14F5F3EE);
+            c.drawRoundRect(lpBox, 16 * k, 16 * k, lpFill);
+            c.drawText(name, lpBox.centerX(), lpBox.centerY() + 8 * k, current ? lpPillOn : lpPill);
+            if (lightsRow == 3 && i == lightsMood) {
+                lpBox.inset(-7 * k, -7 * k);
+                c.drawRoundRect(lpBox, 22 * k, 22 * k, lpRing);
+            }
+            px += pw + 14 * k;
+        }
+    }
 }

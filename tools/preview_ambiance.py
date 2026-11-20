@@ -69,7 +69,55 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
         d.text((W/2,814-34-40),"Nour a 9 mois et 14 jours",font=ft,fill=(255,255,255),anchor="ms")
         d.text((W/2,814-34),"« La simplicité est la sophistication suprême. »  — Léonard de Vinci",font=fq,fill=(240,240,240),anchor="ms")
     im.convert("RGB").save(out,quality=88)
+# The LED strip's panel (OK held on the bulb), same values as HomeView.drawLightsPanel: LP_W 1040, LP_H 640, pad 44
+SWATCHES=[(255,201,138),(243,241,234),(47,75,216),(139,63,217),(229,72,77),(47,179,107)]
+MOODS=["Cinéma","Tamisé","Soirée","Lecture"]
+def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_swatch=2, focus_mood=0):
+    render(name, out)
+    im=Image.open(out).convert("RGBA"); W,H=im.size
+    im.alpha_composite(Image.new("RGBA",(W,H),(0,0,0,0x99)))
+    d=ImageDraw.Draw(im); F=lambda w,s: ImageFont.truetype(inter,s)
+    def rr(box,radius,fill):   # a see-through fill blends, as on the TV (ImageDraw alone would overwrite)
+        layer=Image.new("RGBA",im.size,(0,0,0,0)); ImageDraw.Draw(layer).rounded_rectangle(box,radius=radius,fill=fill)
+        im.alpha_composite(layer)
+    L,T=(W-1040)/2,(H-640)/2; R=L+1040-44; x=L+44
+    rr((L,T,L+1040,T+640),36,(22,26,34,242)); d=ImageDraw.Draw(im)
+    d.rounded_rectangle((L,T,L+1040,T+640),radius=36,outline=(70,72,78),width=2)
+    d.text((x,T+80),"Ruban LED",font=F(600,36),fill=(245,243,238),anchor="ls")
+    d.text((x,T+116),"Derrière la TV",font=F(400,22),fill=(163,166,174),anchor="ls")
+    sw=(R-132,T+50,R,T+120); rr(sw,35,(255,181,71) if on else (245,243,238,51)); d=ImageDraw.Draw(im)
+    kx=sw[2]-35 if on else sw[0]+35; d.ellipse((kx-28,T+85-28,kx+28,T+85+28),fill=(11,13,18) if on else (245,243,238))
+    if row==0: d.rounded_rectangle((sw[0]-9,sw[1]-9,sw[2]+9,sw[3]+9),radius=44,outline=(245,243,238),width=4)
+    y=T+190; lab=lambda r:(245,243,238) if row==r else (201,203,209)
+    d.text((x,y),"Luminosité",font=F(500,22),fill=lab(1),anchor="ls"); d.text((R,y),f"{bright} %",font=F(500,22),fill=(201,203,209),anchor="rs")
+    by=y+30; rr((x,by,R,by+18),9,(245,243,238,31)); d=ImageDraw.Draw(im)
+    kn=x+(R-x)*bright/100
+    grad=Image.new("RGBA",(int(kn-x),18)); gd=ImageDraw.Draw(grad)
+    for i in range(grad.width):
+        t=i/max(1,(R-x)); gd.line((i,0,i,17),fill=(int(138+(255-138)*t),int(90+(181-90)*t),int(30+(71-30)*t)))
+    m=Image.new("L",grad.size,0); ImageDraw.Draw(m).rounded_rectangle((0,0,grad.width-1,17),radius=9,fill=255)
+    im.paste(grad,(int(x),int(by)),m); d=ImageDraw.Draw(im)
+    d.ellipse((kn-18,by+9-18,kn+18,by+9+18),fill=(245,243,238))
+    if row==1:
+        d.ellipse((kn-26,by+9-26,kn+26,by+9+26),outline=(245,243,238),width=4); d.text((x,by+58),"← → pour régler",font=F(400,18),fill=(163,166,174),anchor="ls")
+    y=T+340; d.text((x,y),"Couleur",font=F(500,22),fill=lab(2),anchor="ls")
+    names=["Blanc chaud","Blanc","Bleu nuit","Violet","Rouge","Vert"]
+    if row==2: d.text((R,y),names[focus_swatch],font=F(500,22),fill=(201,203,209),anchor="rs")
+    for i,col in enumerate(SWATCHES):
+        cx=x+36+i*90; cy=y+60; d.ellipse((cx-36,cy-36,cx+36,cy+36),fill=col)
+        if i==swatch and on: d.ellipse((cx-30,cy-30,cx+30,cy+30),outline=(11,13,18),width=3)
+        if row==2 and i==focus_swatch: d.ellipse((cx-45,cy-45,cx+45,cy+45),outline=(245,243,238),width=4)
+    y=T+500; d.text((x,y),"Ambiances",font=F(500,22),fill=lab(3),anchor="ls")
+    px=x; top=y+22
+    for i,n in enumerate(MOODS):
+        cur=on and i==mood; f=F(600 if cur else 500,22); pw=d.textlength(n,font=f)+56
+        rr((px,top,px+pw,top+64),16,(245,243,238) if cur else (245,243,238,20)); d=ImageDraw.Draw(im)
+        d.text((px+pw/2,top+32+8),n,font=f,fill=(11,13,18) if cur else (245,243,238),anchor="ms")
+        if row==3 and i==focus_mood: d.rounded_rectangle((px-7,top-7,px+pw+7,top+71),radius=22,outline=(245,243,238),width=4)
+        px+=pw+14
+    im.convert("RGB").save(out,quality=88)
 if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
     render("day","ecran-day-cesoir.jpg",picks=True)                 # Canal+ focused: tonight on Canal+
     render("day","ecran-day-cesoir-mix.jpg",picks=True,focus=5)     # YouTube focused: the mix
+    render_lights("night","ecran-ruban.jpg")                        # OK held on the bulb: the LED strip's panel

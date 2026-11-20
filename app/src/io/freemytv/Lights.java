@@ -12,8 +12,8 @@ import java.util.concurrent.Executors;
 
 /**
  * The Tuya LED strip behind the TV (LSC Smart Connect, Smart Life…), over the local network with its local key
- * (config.properties: tuya_id, tuya_key, tuya_ip, tuya_version; tools/tuya_keys.py finds them). The light button on the
- * home screen goes through four moods: off, dim, cinema, white.
+ * (config.properties: tuya_id, tuya_key, tuya_ip, tuya_version; tools/tuya_keys.py finds them). OK on the light button
+ * turns it on or off; held, it opens the strip's panel: brightness, a colour, a mood.
  *
  * Tuya lights speak one of two sets of data points: the newer one (20 on/off, 21 mode, 22 brightness 10-1000,
  * 23 white temperature 0-1000, 24 colour "hhhhssssvvvv") or the older one (1, 2, 3 = 25-255, 4 = 0-255,
@@ -22,13 +22,20 @@ import java.util.concurrent.Executors;
 final class Lights {
     private Lights() {}
 
-    static final int OFF = 0, DIM = 1, CINEMA = 2, WHITE = 3, COUNT = 4;
+    interface Done { void done(String error); }   // only called on an error
 
-    interface Done { void done(String error); }   // null = it worked
+    /** The colours: warm white, white (temperature 0-1000), then hues (0-360) at full saturation. */
+    static final int[] SWATCH_RGB = {0xFFFFC98A, 0xFFF3F1EA, 0xFF2F4BD8, 0xFF8B3FD9, 0xFFE5484D, 0xFF2FB36B};
+    private static final int[] SWATCH_TEMP = {0, 550, -1, -1, -1, -1};
+    private static final int[] SWATCH_HUE = {0, 0, 230, 275, 0, 140};
+    /** The moods: cinema (a deep blue glow), dim (warm white, low), evening (warm amber), reading (bright white). */
+    static final int CINEMA = 0, DIM = 1, EVENING = 2, READING = 3, MOODS = 4;
+    private static final int[] MOOD_SWATCH = {2, 0, -1, 1};
+    private static final int[] MOOD_BRIGHT = {14, 22, 45, 90};
 
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
-    private static volatile int wanted = -1;          // the last mood asked for: quick presses only send the last one
+    private static volatile int sent;                 // the last change asked for: quick presses only send the last one
     private static volatile boolean older, noWhite, known;
 
     static boolean configured() {
@@ -39,54 +46,87 @@ final class Lights {
         return c.getSharedPreferences("lights", Context.MODE_PRIVATE);
     }
 
-    static int mood(Context c) {
-        return sp(c).getInt("mood", OFF);
-    }
+    static boolean on(Context c) { return sp(c).getBoolean("on", false); }
+    static int brightness(Context c) { return sp(c).getInt("bright", 70); }
+    /** The colour picked (index in SWATCH_RGB), or -1 for the evening's own amber. */
+    static int swatch(Context c) { return sp(c).getInt("swatch", 0); }
+    /** The mood picked, or -1 once the colour or the brightness was changed by hand. */
+    static int mood(Context c) { return sp(c).getInt("mood", -1); }
 
-    static String name(int mood) {
+    static String moodName(int mood) {
         switch (mood) {
-            case DIM: return Ui.tr("Suave", "Dim", "Tenue");
             case CINEMA: return Ui.tr("Cinema", "Cinema", "Cine");
-            case WHITE: return Ui.tr("Branca", "White", "Blanca");
-            default: return Ui.tr("Apagada", "Switched off", "Apagada");
+            case DIM: return Ui.tr("Suave", "Dim", "Tenue");
+            case EVENING: return Ui.tr("Noite", "Evening", "Velada");
+            default: return Ui.tr("Leitura", "Reading", "Lectura");
         }
     }
 
-    /** The next mood (OK on the light button): sent in the background, `done` on the main thread. */
-    static int next(Context c, Done done) {
-        int mood = (mood(c) + 1) % COUNT;
-        set(c, mood, done);
-        return mood;
+    static String swatchName(int i) {
+        switch (i) {
+            case 0: return Ui.tr("Branco quente", "Warm white", "Blanco cálido");
+            case 1: return Ui.tr("Branco", "White", "Blanco");
+            case 2: return Ui.tr("Azul noite", "Night blue", "Azul noche");
+            case 3: return Ui.tr("Violeta", "Violet", "Violeta");
+            case 4: return Ui.tr("Vermelho", "Red", "Rojo");
+            default: return Ui.tr("Verde", "Green", "Verde");
+        }
     }
 
-    static void set(Context c, int mood, Done done) {
-        sp(c).edit().putInt("mood", mood).apply();
-        wanted = mood;
+    // MARK: - Changes (saved at once, sent in the background)
+
+    static void toggle(Context c, Done done) {
+        setOn(c, !on(c), done);
+    }
+
+    static void setOn(Context c, boolean on, Done done) {
+        sp(c).edit().putBoolean("on", on).apply();
+        push(c, done);
+    }
+
+    /** 5 to 100 %. */
+    static void setBrightness(Context c, int percent, Done done) {
+        sp(c).edit().putBoolean("on", true).putInt("bright", Math.max(5, Math.min(100, percent))).putInt("mood", -1).apply();
+        push(c, done);
+    }
+
+    static void setSwatch(Context c, int i, Done done) {
+        sp(c).edit().putBoolean("on", true).putInt("swatch", i).putInt("mood", -1).apply();
+        push(c, done);
+    }
+
+    static void setMood(Context c, int mood, Done done) {
+        sp(c).edit().putBoolean("on", true).putInt("mood", mood).putInt("swatch", MOOD_SWATCH[mood])
+                .putInt("bright", MOOD_BRIGHT[mood]).apply();
+        push(c, done);
+    }
+
+    private static void push(Context c, Done done) {
+        final int id = ++sent;
+        final boolean on = on(c);
+        final int bright = brightness(c), swatch = swatch(c);
         IO.execute(() -> {
-            if (wanted != mood) return;   // a newer press is queued
-            String error = null;
+            if (id != sent) return;   // a newer change is queued
             try {
-                send(c, mood);
+                send(c, on, bright, swatch);
             } catch (Exception e) {
-                error = e.getMessage() == null ? e.toString() : e.getMessage();
+                String error = e.getMessage() == null ? e.toString() : e.getMessage();
                 AppLog.w("lights: " + error);
+                if (done != null) MAIN.post(() -> done.done(error));
             }
-            final String result = error;
-            if (done != null) MAIN.post(() -> done.done(result));
         });
     }
 
     // MARK: - The strip
 
-    private static void send(Context c, int mood) throws Exception {
+    private static void send(Context c, boolean on, int bright, int swatch) throws Exception {
         Exception last = null;
         for (String version : versions(c)) {
             Tuya t = new Tuya(Config.TUYA_IP, Config.TUYA_ID, Config.TUYA_KEY.trim(), version);
             try {
                 t.connect(4000);
                 if (!known) learn(t.status());
-                JSONObject dps = dps(mood);
-                t.set(dps);
+                t.set(dps(on, bright, swatch));
                 sp(c).edit().putString("version", version).apply();
                 return;
             } catch (Exception e) {
@@ -102,9 +142,8 @@ final class Lights {
     private static String[] versions(Context c) {
         String v = Config.TUYA_VERSION.trim();
         if (!v.isEmpty()) return new String[] {v};
-        String last = sp(c).getString("version", "3.5");
         java.util.LinkedHashSet<String> all = new java.util.LinkedHashSet<>();
-        all.add(last);
+        all.add(sp(c).getString("version", "3.5"));
         all.add("3.5");
         all.add("3.4");
         all.add("3.3");
@@ -119,19 +158,16 @@ final class Lights {
         AppLog.w("lights: " + (older ? "older" : "newer") + " data points" + (noWhite ? ", colour only" : ""));
     }
 
-    private static JSONObject dps(int mood) throws org.json.JSONException {
+    private static JSONObject dps(boolean on, int bright, int swatch) throws org.json.JSONException {
         JSONObject o = new JSONObject();
         String power = older ? "1" : "20";
-        if (mood == OFF) return o.put(power, false);
+        if (!on) return o.put(power, false);
         o.put(power, true);
-        switch (mood) {
-            case DIM:     // warm and low
-                return noWhite ? colour(o, 30, 700, 220) : white(o, 220, 0);
-            case CINEMA:  // a deep blue glow, low, behind the picture
-                return colour(o, 235, 1000, 140);
-            default:      // WHITE: neutral and bright
-                return noWhite ? colour(o, 0, 0, 850) : white(o, 850, 450);
-        }
+        int v = bright * 10;   // 0-1000
+        if (swatch < 0) return colour(o, 28, 850, v);   // the evening's warm amber
+        int temp = SWATCH_TEMP[swatch];
+        if (temp >= 0) return noWhite ? colour(o, 30, temp == 0 ? 600 : 0, v) : white(o, v, temp);
+        return colour(o, SWATCH_HUE[swatch], 1000, v);
     }
 
     /** brightness and temperature on the newer scale (0-1000). */
@@ -144,6 +180,7 @@ final class Lights {
 
     /** hue 0-360, saturation and value on the newer scale (0-1000). */
     private static JSONObject colour(JSONObject o, int h, int s, int v) throws org.json.JSONException {
+        v = Math.max(10, v);
         if (older) {
             int rgb = android.graphics.Color.HSVToColor(new float[] {h, s / 1000f, v / 1000f});
             String hex = String.format(java.util.Locale.ROOT, "%06x%04x%02x%02x", rgb & 0xFFFFFF, h, s * 255 / 1000, v * 255 / 1000);
