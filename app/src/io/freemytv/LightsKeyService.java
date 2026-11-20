@@ -151,17 +151,20 @@ public class LightsKeyService extends AccessibilityService {
     }
 
     /**
-     * The strip's small panel: [on/off] [−] [brightness] [+] [Cinema] [Dim] [Evening] [Reading]. Drawn by hand, like
+     * The strip's small panel: [on/off] [−] [brightness] [+] [Cinema] [Dim] [Evening] [Reading] [Good night: dim
+     * light, the TV to standby in 30 min (Sleep), the strip off with it]. Drawn by hand, like
      * the home screen's panel (HomeView.drawLightsPanel), in its colours.
      */
     private static final class Panel extends View {
-        private static final int ITEMS = 3 + Lights.MOODS;   // on/off, −, +, then the moods
+        private static final int ITEMS = 3 + Lights.MOODS + 1;   // on/off, −, +, the moods, then "Good night"
         private final Context c;
         private int focus;
         private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), ring = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint title, text, dark, value;
         private final RectF card = new RectF(), box = new RectF();
         private final float k;
+        private static final int GOOD_NIGHT = 30;
+        private final String goodNight = Ui.tr("Boa noite", "Good night", "Buenas noches");
 
         Panel(Context c) {
             super(c);
@@ -202,14 +205,19 @@ public class LightsKeyService extends AccessibilityService {
         void apply() {
             if (focus == 0) Lights.toggle(c, null);
             else if (focus <= 2) Lights.setBrightness(c, Math.max(10, Math.min(100, (Lights.brightness(c) + 5) / 10 * 10 + (focus == 2 ? 10 : -10))), null);
-            else Lights.setMood(c, focus - 3, null);
+            else if (focus < ITEMS - 1) Lights.setMood(c, focus - 3, null);
+            else if (Sleep.at(c) != 0) Sleep.set(c, 0);    // "Good night" again: cancelled
+            else {                                         // dim light now, the TV to standby in 30 min (the strip
+                Lights.setMood(c, Lights.DIM, null);       // then turns off with it, after the delay picked)
+                Sleep.set(c, GOOD_NIGHT);
+            }
             invalidate();
         }
 
         @Override protected void onDraw(Canvas cv) {
             boolean on = Lights.on(c);
             int mood = Lights.mood(c);
-            float w = getWidth(), cw = 1240 * k, left = (w - cw) / 2, top = 20 * k;
+            float w = getWidth(), cw = 1560 * k, left = (w - cw) / 2, top = 20 * k;
             card.set(left, top, left + cw, top + 170 * k);
             fill.setColor(0xF2161A22);
             cv.drawRoundRect(card, 32 * k, 32 * k, fill);
@@ -234,6 +242,10 @@ public class LightsKeyService extends AccessibilityService {
                 pill(cv, on && i == mood, name, 3 + i);
                 x += pw + 14 * k;
             }
+            int left2 = Sleep.minutesLeft(c);
+            String night = left2 > 0 ? goodNight + " · " + left2 + " min" : goodNight;
+            box.set(x, y, x + text.measureText(night) + 56 * k, y + h);
+            pill(cv, left2 > 0, night, ITEMS - 1);
         }
 
         private void pill(Canvas cv, boolean lit, String label, int index) {

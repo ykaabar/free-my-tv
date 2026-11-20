@@ -20,6 +20,7 @@ adb shell pm enable com.amazon.wirelessmetrics.service
 adb shell pm enable com.amazon.perfcollection
 adb shell pm enable com.amazon.device.crashmanager
 adb shell pm revoke io.freemytv android.permission.WRITE_SECURE_SETTINGS
+adb shell appops set io.freemytv REQUEST_INSTALL_PACKAGES default
 echo.
 echo Termine : tout est comme avant.
 pause

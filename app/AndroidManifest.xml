@@ -6,6 +6,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The family edition installs its own updates (Updater); Android still asks on screen each time. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- After the TV boots (and after a TV update), checks that Free My TV mode is still as you left it. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -163,6 +165,8 @@
         <!-- Fire TV with an LED strip: the remote's Menu key (short: on/off; held: the strip's panel, over any app).
              Turned on with FireHomeService (HomeMode.fireSecure). Its own process: the system waits for it on every
              key, like RemoteKeyService. -->
+        <receiver android:name=".UpdateReceiver" android:exported="false" />
+
         <service
             android:name=".LightsKeyService"
             android:process=":keys"

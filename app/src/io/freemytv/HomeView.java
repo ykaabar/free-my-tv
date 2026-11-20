@@ -449,6 +449,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         checkStyle();
         if (amb && ambNow == null) nextAmbiancePhoto();
         ambLift.snap(ambPicks() ? 1 : 0);   // coming back to the home screen: already in place
+        Updater.maybeCheck(getContext());   // the family edition: a newer build on GitHub?
         makeLightButtons();
         layoutLight();
         checkNight(false);

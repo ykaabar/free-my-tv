@@ -185,6 +185,7 @@ final class French {
             case "Never": return "Jamais";
             case "Light on": return "Allumé";
             case "Light off": return "Éteint";
+            case "Good night": return "Bonne nuit";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";
             case "None": return "Aucun";

@@ -193,6 +193,7 @@ final class German {
             case "Never": return "Nie";
             case "Light on": return "An";
             case "Light off": return "Aus";
+            case "Good night": return "Gute Nacht";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";
             case "None": return "Keine";

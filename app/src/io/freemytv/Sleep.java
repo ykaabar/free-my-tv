@@ -10,7 +10,8 @@ import android.os.Build;
 /**
  * The sleep timer (the moon button): the TV goes to standby in 30, 60 or 90 minutes, whatever app is on screen.
  * An alarm wakes HomeReceiver in the main process, which presses the remote's Sleep key through the TV's own ADB
- * (the same connection the mode switch uses), and Power if the TV is still awake two seconds later.
+ * (the same connection the mode switch uses), and Power if the TV is still awake two seconds later. On Fire TV,
+ * FireHomeService's "lock screen" global action instead (Amazon closes the app's own ADB).
  */
 final class Sleep {
     private Sleep() {}
@@ -20,7 +21,9 @@ final class Sleep {
     static final int[] STEPS = {30, 60, 90};
 
     private static SharedPreferences sp(Context c) {
-        return c.getApplicationContext().getSharedPreferences("sleep", Context.MODE_PRIVATE);
+        // Multi-process: "Good night" sets it from the Menu key's panel (:keys), the moon button shows it (:home).
+        @SuppressWarnings("deprecation") SharedPreferences p = c.getApplicationContext().getSharedPreferences("sleep", Context.MODE_MULTI_PROCESS);
+        return p;
     }
 
     /** When the TV goes to sleep (epoch ms), or 0 when the timer is off. */
@@ -67,6 +70,11 @@ final class Sleep {
     /** The alarm went off (main process, off the main thread): standby. */
     static void now(Context c) {
         sp(c).edit().remove("at").apply();
+        if (HomeMode.FIRE) {   // no ADB of our own on Fire OS: the Home button's accessibility service puts it to sleep
+            AppLog.w(FireHomeService.sleepNow() ? "sleep timer: the stick went to standby"
+                    : "sleep timer: Fire TV's home service isn't running (Original mode?)");
+            return;
+        }
         try (Adb adb = Adb.connect(c, 0, null)) {
             adb.shell("input keyevent KEYCODE_SLEEP");
             Thread.sleep(2000);

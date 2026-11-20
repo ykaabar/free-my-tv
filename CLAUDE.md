@@ -25,6 +25,9 @@ before you do it, and let them do the taps on the TV.
      Its *edition* input: *mine* (every secret) or *family*, the build the owner gives to family and friends: the TMDB
      key only (picks, the films screensaver, Ambience by time of day); no iCloud album, LED strip or Unsplash key
      (Unsplash's free tier is for one app in testing, 50 requests an hour); the settings then hide what needs them.
+     Every build is numbered (the run number is the versionCode); a family build is also published as the release
+     `family-<number>`, and the family's TVs install it themselves (`Updater`, twice a day at most, from the home
+     screen; Android asks on screen; `fire/menage-fire.bat` allows "install unknown apps" for the app).
 3. **Settings:** run `./build.sh` once; it creates `config.properties`. Fill in `latitude` and `longitude` (decimal
    degrees) and `city` for their city, `tmdb_region` (two-letter country), `show_crypto`, `currency` and `temperature` to match.
 4. **The TMDB key is theirs and secret.** Ask them to create one (free: themoviedb.org → Settings → API) and paste it
@@ -138,8 +141,8 @@ itself: an accessibility service that opens our home screen when Amazon's launch
 of Amazon's home on each Home press). Fire OS holds back JobScheduler jobs of sideloaded apps, so immediate switches run
 in `ModeService`; the boot and update broadcasts put the service back at once (`HomeMode.fireRestore`), and the
 service opens our home once when it binds in the first minutes after a restart (Amazon's home came up before it could
-see it). Fire OS keeps only warnings in the log (`AppLog` logs at that level). The sleep timer needs the local
-ADB, so it doesn't work there. Keep the `.bat` files in step with `DEBLOAT`.
+see it). Fire OS keeps only warnings in the log (`AppLog` logs at that level). The sleep timer uses FireHomeService's
+"lock screen" global action there (`FireHomeService.sleepNow`), which puts the stick to sleep. Keep the `.bat` files in step with `DEBLOAT`.
 
 LG and Samsung: the web app above. Other TVs that don't run Google TV or Android TV: the way is a Google TV streamer on
 HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set Free My TV up on the streamer.
@@ -205,6 +208,7 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   broadcasts, in one process only (the main one on Fire TV, kept alive by FireHomeService; `:home` elsewhere), so the
   `lights` preferences are multi-process. On Fire TV, `LightsKeyService` (in `:keys`, turned on with FireHomeService)
   gives the remote's Menu key to the strip from any app: short = on/off, held 0.6 s = a small panel at the bottom
+  (with "Good night": dim light, the sleep timer at 30 min)
   (an accessibility overlay), Menu left alone while an on-screen keyboard is up. Amazon keeps Home: a key filter never
   sees it (tested on Fire OS 8.1.8.5). It shows only when `tuya_id`, `tuya_key` and
   `tuya_ip` are set. `tools/tuya_keys.py` finds them (QR login with the Smart Life app, then a scan of the Wi-Fi); the

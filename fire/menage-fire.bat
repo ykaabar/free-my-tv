@@ -4,6 +4,8 @@ rem Turns off Amazon's ad, shopping, tracking and tutorial apps (never uninstall
 rem turn its Home button service on and off by itself. restaurer-fire.bat undoes it.
 echo Free My TV peut maintenant gerer le bouton Accueil :
 adb shell pm grant io.freemytv android.permission.WRITE_SECURE_SETTINGS
+rem Lets the family edition install its own updates (Android still asks on screen each time).
+adb shell appops set io.freemytv REQUEST_INSTALL_PACKAGES allow
 echo.
 echo Desactivation des applis de pub et de suivi d'Amazon :
 rem ads that open from the home screen

@@ -44,7 +44,25 @@ public class FireHomeService extends AccessibilityService {
      * Bound in the first minutes after the stick starts: Amazon's home came up before this service could see it, so
      * nothing else can be in front. Ours goes on top once (as couch-tv's FireWatch does), unless it keeps crashing.
      */
+    /** The running service, for the sleep timer (same process: main). */
+    private static volatile FireHomeService running;
+
+    /**
+     * Fire TV's standby without ADB (Amazon closes the app's own ADB): an accessibility service may "lock the screen",
+     * which Android does by putting the device to sleep. False if the service isn't running.
+     */
+    static boolean sleepNow() {
+        FireHomeService s = running;
+        return s != null && s.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+    }
+
+    @Override public void onDestroy() {
+        running = null;
+        super.onDestroy();
+    }
+
     @Override protected void onServiceConnected() {
+        running = this;
         if (SystemClock.elapsedRealtime() > BOOT_WINDOW_MS || Watchdog.crashedTooOften(this)) return;
         AppLog.w("fire home: bound just after a restart, opening Free My TV");
         launchedAt = SystemClock.uptimeMillis();
