@@ -614,6 +614,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         w = width;
         h = height;
         k = w / 1920f;
+        // resume() came before the first layout (w was 0) and couldn't load the background: now, not at the next tick.
+        if (amb && ambNow == null && w > 0) handler.post(this::nextAmbiancePhoto);
         screen.set(0, 0, w, h);
         scene.setSize(w, h);
         makePaints();
@@ -3475,6 +3477,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private boolean ambTopLight, ambBottomLight;    // the shown photo where the clock and the dock sit
     private boolean ambLate;                        // after 9 pm: the scene dims a little
     private long ambFadeAt, ambNextAt;
+    private float ambFadeLen = AMB_FADE;            // shorter for the first photo: nothing to cross-fade from
+    // The last scene, decoded: the home screen built again (the activity recreated) shows it at once.
+    private static Bitmap sceneCachePhoto, sceneCacheGlass;
+    private static String sceneCacheKey = "";
     private boolean ambLoading;
     private String ambKey = "", ambCredit = "";
     private final java.util.Random ambRandom = new java.util.Random();
@@ -3509,6 +3515,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             nextAmbiancePhoto();
         } else {
             ambNow = ambOld = ambFrost = ambFrostOld = ambFg = null;
+            sceneCachePhoto = sceneCacheGlass = null;   // ~10 MB the other themes don't need
+            sceneCacheKey = "";
             ambFrostShader = ambFrostOldShader = null;
             ambKey = ambCredit = ambShownFor = "";
             ambScene = -1;
@@ -3694,6 +3702,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         final int width = w, height = h;
         final String name = "scenes/" + SCENES[scene];
         final boolean cutOut = SCENE_AT[scene][6] == 1;
+        final String cacheKey = name + "@" + width + "x" + height;
+        if (!cutOut && cacheKey.equals(sceneCacheKey) && sceneCachePhoto != null) {
+            showAmbiance(sceneCachePhoto, sceneCacheGlass, null, scene, "scene:" + scene, "", wanted, false, false);
+            return;
+        }
         LOADER.execute(() -> {
             Bitmap photo = null, glass = null, fg = null;
             try {
@@ -3704,7 +3717,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 AppLog.w("scene " + name + ": " + e);
             }
             final Bitmap p2 = photo, g2 = glass, f2 = fg;
-            handler.post(() -> showAmbiance(p2, g2, f2, scene, "scene:" + scene, "", wanted, false, false));
+            handler.post(() -> {
+                if (p2 != null && f2 == null && amb) {
+                    sceneCachePhoto = p2;
+                    sceneCacheGlass = g2;
+                    sceneCacheKey = cacheKey;
+                }
+                showAmbiance(p2, g2, f2, scene, "scene:" + scene, "", wanted, false, false);
+            });
         });
     }
 
@@ -3747,6 +3767,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         ambShade = null;
         ambSheenKey = "";
         ambFadeAt = SystemClock.uptimeMillis();
+        ambFadeLen = ambOld == null ? 450 : AMB_FADE;
         ambInk();
         checkNight(true);
         heroDirty = tilesDirty = statusDirty = true;
@@ -3774,7 +3795,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private boolean tickAmbiance(long up) {
         if (ambFadeAt == 0) return false;
-        if (up - ambFadeAt >= AMB_FADE) {
+        if (up - ambFadeAt >= ambFadeLen) {
             ambFadeAt = 0;
             ambOld = null;
             ambFrostOld = null;
@@ -3794,7 +3815,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                     new float[] {0, 0.38f, 0.62f, 0.82f, 1}, Shader.TileMode.CLAMP);
         }
         android.graphics.ColorFilter v = veil(Math.max(0.62f * Ui.clamp(drawer.value), ambDim()), 0xFF000000);
-        float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE);
+        float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen);
         if (ambNow == null || (e < 1 && ambOld == null)) {
             fill.setColorFilter(v);
             fill.setColor(0xFF000000);
@@ -3841,7 +3862,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
             ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
             ambFgPaint.setColorFilter(ambDim() > 0 ? veil(ambDim(), 0xFF000000) : null);
-            ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE)));
+            ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen)));
             c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
         }
         if (ambPicks()) drawTonight(c);
@@ -3953,7 +3974,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         tmp.offset(0, 18 * k);
         shadow.setColor(0x47000000);
         shadows.draw(c, tmp, r, SHADOW_BLUR * k, shadow);
-        float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), AMB_FADE);
+        float e = ambFadeAt == 0 ? 1 : fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen);
         boolean drawn = false;
         if (e < 1 && ambFrostOldShader != null) {
             ambGlass.setShader(frostShader(ambFrostOldShader, ambFrostOld));
