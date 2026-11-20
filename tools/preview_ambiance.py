@@ -7,7 +7,7 @@ import os
 A=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "app", "assets") + "/"; P=A+"scenes/"
 font=A+"fonts/Antonio-Light.ttf"; inter=A+"fonts/InterVariable.ttf"
 # name: date top, clock top, size, left(-1 centre), dark ink, fill, cut-out  (same columns as SCENE_AT)
-SC={"night":(70,120,330,-1,0,3,0),"dawn":(70,120,330,-1,0,0,0),"day":(70,120,330,-1,0,0,0),"sunset":(70,120,330,-1,0,0,0)}
+SC={"night":(190,240,440,-1,0,3,1),"dawn":(190,240,440,-1,0,0,1),"day":(190,240,440,-1,0,0,1),"sunset":(190,240,440,-1,0,0,1)}
 APPS=[("ATLAS PRO",(20,20,24)),("CANAL+",(0,0,0)),("TF1+",(29,59,209)),("prime video",(26,152,255)),("Apple tv",(0,0,0)),("YouTube",(245,245,247))]
 SERVICES={"CANAL+":"CANAL+","TF1+":"TF1+","prime video":"Prime Video","Apple tv":"Apple TV"}
 def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert"):
@@ -28,6 +28,9 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
     im=Image.composite(glass,im,mask.point(lambda v:int(v*(0.9 if fillm==1 else 1))))
     rim=Image.new("L",(W,H),0); ImageDraw.Draw(rim).text((x,base),t,font=f,fill=0,anchor="ls",stroke_width=1,stroke_fill=140)
     im=Image.composite(Image.new("RGBA",(W,H),(255,255,255,255)),im,rim)
+    if cut:   # the scenery in front of the clock, over the clock's band only (HomeView.drawAmbianceTop)
+        fg=Image.open(P+f"{name}-fg.webp").convert("RGBA"); top,bot=int(ct),int(ct+0.82*size)
+        im.alpha_composite(fg.crop((0,top,W,bot)),(0,top))
     d=ImageDraw.Draw(im); fd=ImageFont.truetype(inter,34)
     full=date+"     "+wx; dw=d.textlength(full,font=fd); dx= left if left>=0 else (W-dw)/2
     d.text((dx,dt+30),full,font=fd,fill=(22,32,29) if dark else (255,255,255),anchor="ls")

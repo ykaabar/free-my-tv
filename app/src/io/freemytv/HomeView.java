@@ -3479,10 +3479,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final String[] SCENES = {"night", "dawn", "day", "sunset"};
     private static final float[][] SCENE_AT = {
         // date top, clock top, size, left, dark ink, fill, has a cut-out: the same place on all four, over the summit
-        {70, 120, 330, -1, 0, 3, 0},     // night: light frosted glass on the dark sky
-        {70, 120, 330, -1, 0, 0, 0},
-        {70, 120, 330, -1, 0, 0, 0},
-        {70, 120, 330, -1, 0, 0, 0},
+        // A big clock, low enough for the summit to cross its last digits (behind it, as on iOS): one cut-out outline
+        // for all four (they're aligned), each with its own light.
+        {190, 240, 440, -1, 0, 3, 1},    // night: light frosted glass on the dark sky
+        {190, 240, 440, -1, 0, 0, 1},
+        {190, 240, 440, -1, 0, 0, 1},
+        {190, 240, 440, -1, 0, 0, 1},
     };
     private static final int[] SCENE_RIM = {0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF};
     private static final int[] SCENE_SHADE_TOP = {0x40000000, 0x40000000, 0x40000000, 0x40000000};
@@ -3494,7 +3496,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private boolean amb;
     private String ambSource = "", ambShownFor = "";
-    private Bitmap ambNow, ambOld, ambFrost, ambFrostOld, ambFg;
+    private Bitmap ambNow, ambOld, ambFrost, ambFrostOld, ambFg, ambFgOld;
     private BitmapShader ambFrostShader, ambFrostOldShader;
     private int ambScene = -1;                      // index in SCENES, or -1 for a photo
     private boolean ambTopLight, ambBottomLight;    // the shown photo where the clock and the dock sit
@@ -3502,7 +3504,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private long ambFadeAt, ambNextAt;
     private float ambFadeLen = AMB_FADE;            // shorter for the first photo: nothing to cross-fade from
     // The last scene, decoded: the home screen built again (the activity recreated) shows it at once.
-    private static Bitmap sceneCachePhoto, sceneCacheGlass;
+    private static Bitmap sceneCachePhoto, sceneCacheGlass, sceneCacheFg;
     private static String sceneCacheKey = "";
     private boolean ambLoading;
     private String ambKey = "", ambCredit = "";
@@ -3538,7 +3540,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             nextAmbiancePhoto();
         } else {
             ambNow = ambOld = ambFrost = ambFrostOld = ambFg = null;
-            sceneCachePhoto = sceneCacheGlass = null;   // ~10 MB the other themes don't need
+            sceneCachePhoto = sceneCacheGlass = sceneCacheFg = null;   // ~20 MB the other themes don't need
+            ambFgOld = null;
             sceneCacheKey = "";
             ambFrostShader = ambFrostOldShader = null;
             ambKey = ambCredit = ambShownFor = "";
@@ -3734,8 +3737,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         final String name = "scenes/" + SCENES[scene];
         final boolean cutOut = SCENE_AT[scene][6] == 1;
         final String cacheKey = name + "@" + width + "x" + height;
-        if (!cutOut && cacheKey.equals(sceneCacheKey) && sceneCachePhoto != null) {
-            showAmbiance(sceneCachePhoto, sceneCacheGlass, null, scene, "scene:" + scene, "", wanted, false, false);
+        if (cacheKey.equals(sceneCacheKey) && sceneCachePhoto != null) {
+            showAmbiance(sceneCachePhoto, sceneCacheGlass, sceneCacheFg, scene, "scene:" + scene, "", wanted, false, false);
             return;
         }
         LOADER.execute(() -> {
@@ -3749,9 +3752,10 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             }
             final Bitmap p2 = photo, g2 = glass, f2 = fg;
             handler.post(() -> {
-                if (p2 != null && f2 == null && amb) {
+                if (p2 != null && (f2 != null || !cutOut) && amb) {
                     sceneCachePhoto = p2;
                     sceneCacheGlass = g2;
+                    sceneCacheFg = f2;
                     sceneCacheKey = cacheKey;
                 }
                 showAmbiance(p2, g2, f2, scene, "scene:" + scene, "", wanted, false, false);
@@ -3783,6 +3787,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         ambNextAt = SystemClock.uptimeMillis() + (photo == null ? AMB_RETRY : AMB_EVERY);
         if (photo == null || !amb) return;
         ambOld = ambNow;
+        ambFgOld = ambFg;
         ambFrostOld = ambFrost;
         ambFrostOldShader = ambFrostShader;
         ambNow = photo;
@@ -3830,6 +3835,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (up - ambFadeAt >= ambFadeLen) {
             ambFadeAt = 0;
             ambOld = null;
+            ambFgOld = null;
             ambFrostOld = null;
             ambFrostOldShader = null;
         }
@@ -3894,6 +3900,12 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
             ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
             ambFgPaint.setColorFilter(ambDim() > 0 ? veil(ambDim(), 0xFF000000) : null);
+            // One light to the next: the old cut-out stays whole under the new one fading in (the same outline), so
+            // the clock never shows through the summit halfway.
+            if (ambFadeAt != 0 && ambFgOld != null) {
+                ambFgPaint.setAlpha(255);
+                c.drawBitmap(ambFgOld, ambSrc, ambDst, ambFgPaint);
+            }
             ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen)));
             c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
         }
