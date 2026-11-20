@@ -681,7 +681,7 @@ public class SettingsActivity extends Activity {
             v[1] = unit.equals("C") ? "°C" : unit.equals("F") ? "°F" : Ui.tr("Automática", "Automatic");
             String theme = Prefs.theme();
             v[2] = theme.equals("light") ? Ui.tr("Claro", "Light") : theme.equals("dark") ? Ui.tr("Escuro", "Dark")
-                    : theme.equals("ambiance") ? Ui.tr("Ambiente · clima", "Ambience · weather", "Ambiente · clima")
+                    : theme.equals("ambiance") ? Ui.tr("Ambiente · conforme a hora", "Ambience · time of day", "Ambiente · según la hora")
                     : theme.equals("ambiance-landscape") ? Ui.tr("Ambiente · montanhas", "Ambience · mountains", "Ambiente · montañas")
                     : theme.equals("ambiance-album") ? Ui.tr("Ambiente · minhas fotos", "Ambience · my photos", "Ambiente · mis fotos")
                     : Ui.tr("Automático", "Automatic");

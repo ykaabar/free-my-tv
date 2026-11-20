@@ -97,6 +97,7 @@ final class Spanish {
             case "Original: Amazon's home screen is back.": return "Original: volvió la pantalla de inicio de Amazon.";
             case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "Fire TV bloquea el ADB de la propia app. Una vez, en la computadora: ";
             case "Ambience · weather": return "Ambiente · clima";
+            case "Ambience · time of day": return "Ambiente · según la hora";
             case "Ambience · mountains": return "Ambiente · montañas";
             case "Ambience · my photos": return "Ambiente · mis fotos";
             case "Tonight": return "Esta noche";

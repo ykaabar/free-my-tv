@@ -3433,22 +3433,20 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     // behind the scenery, the date and weather on one line above it, today's line, and the apps in a glass dock
 
     /**
-     * couch-tv's five scenes (assets/scenes, made for couch-tv with an image model, free to use): the photo, a cut-out
-     * of everything in front of the sky (drawn over the clock), and a blurred copy for the clock's glass. Per scene, in
-     * the 1920 × 1080 space: the date's top, the clock's top and size, its left edge (-1 = centered), dark ink, the
-     * glass fill (0 = as is, 1 = brighter, 2 = darker) and the rim's color.
+     * The backgrounds, one per time of day (assets/scenes, Unsplash photos chosen by the owner): the photo and a
+     * blurred copy for the clock's glass. Per photo, in the 1920 × 1080 space: the date's top, the clock's top and
+     * size, its left edge (-1 = centered), dark ink, the glass fill (0 = as is, 1 = brighter, 2 = darker, 3 = light
+     * frosted) and whether a cut-out goes over the clock (none of these photos has one).
      */
-    private static final String[] SCENES = {"night", "golden", "water", "fog", "dawn"};
+    private static final String[] SCENES = {"night", "dawn", "day"};
     private static final float[][] SCENE_AT = {
         // date top, clock top, size, left, dark ink, fill, has a cut-out
-        {96, 150, 400, -1, 0, 1, 1},
-        {106, 152, 390, -1, 0, 0, 1},
-        {96, 150, 400, -1, 0, 0, 1},     // our own cut-out: the clock behind the snowy peaks
-        {116, 172, 470, 96, 1, 2, 1},
-        {176, 230, 400, -1, 0, 0, 1},
+        {96, 150, 400, -1, 0, 3, 0},     // the starry sky over the peaks
+        {200, 250, 340, 1020, 0, 0, 0},  // to the right, in the sky beside the summit
+        {70, 120, 330, -1, 0, 0, 0},     // the lake: high, over the far peaks
     };
-    private static final int[] SCENE_RIM = {0x80FFD7E1, 0x8CFFFFFF, 0x8CFFFFFF, 0x99FFFFFF, 0x8CFFFFFF};
-    private static final int[] SCENE_SHADE_TOP = {0x00000000, 0x00000000, 0x6B000C18, 0x00000000, 0x6B321C0C};
+    private static final int[] SCENE_RIM = {0x8CFFFFFF, 0x8CFFFFFF, 0x8CFFFFFF};
+    private static final int[] SCENE_SHADE_TOP = {0x40000000, 0x40000000, 0x40000000};
 
     // Tonight's picks over the shelf, when shown (1920 × 1080): card size and gap.
     private static final float A_CARD_W = 360, A_CARD_H = 203, A_CARD_GAP = 40;
@@ -3555,8 +3553,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (aDate == null) return;
         boolean dark = ambScene >= 0 ? SCENE_AT[ambScene][4] == 1 : ambTopLight;
         int shade = dark ? 0x00000000 : 0x40000000;
-        aDate.setColor(dark ? 0xFF16201D : ambScene == 0 ? 0xEBFFE8EE : 0xFFFFFFFF);
-        aWx.setColor(dark ? 0xB816201D : ambScene == 0 ? 0xC7FFE8EE : 0xC7FFFFFF);
+        aDate.setColor(dark ? 0xFF16201D : 0xFFFFFFFF);
+        aWx.setColor(dark ? 0xB816201D : 0xC7FFFFFF);
         aDate.setShadowLayer(18 * k, 0, 2 * k, shade);
         aWx.setShadowLayer(18 * k, 0, 2 * k, shade);
         aCredit.setColor(0xB3FFFFFF);
@@ -3565,40 +3563,17 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     // Which background
 
-    /** What to show now: the scene for the time of day and the weather, Unsplash's mountains, or the album. */
+    /** What to show now: the photo for the time of day, Unsplash's mountains, or the album. */
     private String ambWanted() {
         if (ambSource.equals("album")) return "album";
         if (ambSource.equals("landscape")) return "landscape";
         return "scene:" + SCENES[sceneFor()];
     }
 
-    /**
-     * The scene for now, as couch-tv picks it: Night after dusk, Dawn around sunrise, Golden hour before sunset, and
-     * in the day Fog under clouds, rain or snow, the Waterline in clear weather.
-     */
+    /** The photo for the hour: night from 8 pm to 5 am, dawn until 9 am, the lake in the day. */
     private int sceneFor() {
-        HomeData.Weather wx = data.weather;
-        long now = System.currentTimeMillis();
-        String phase;
-        if (wx.sunrise > 0 && wx.sunset > 0) {
-            long m = 60_000L;
-            if (now < wx.sunrise - 30 * m || now > wx.sunset + 40 * m) phase = "night";
-            else if (now < wx.sunrise + 75 * m) phase = "dawn";
-            else if (now > wx.sunset - 90 * m) phase = "dusk";
-            else phase = "day";
-        } else {
-            int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-            phase = h >= 5 && h < 8 ? "dawn" : h >= 8 && h < 16 ? "day" : h >= 16 && h < 19 ? "dusk" : "night";
-        }
-        switch (phase) {
-            case "night": return 0;
-            case "dawn": return 4;
-            case "dusk": return 1;
-            default:
-                int code = wx.code;
-                boolean grey = code == 3 || code == 45 || code == 48 || (code >= 51 && code <= 86) || code >= 95;
-                return grey ? 3 : 2;
-        }
+        int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
+        return h >= 20 || h < 5 ? 0 : h < 9 ? 1 : 2;
     }
 
     /** Time for another background: the scene (or the source) changed, or a photo has been shown for a while. */
@@ -3709,7 +3684,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Bitmap photo = null, glass = null, fg = null;
             try {
                 photo = sized(asset(assets, name + ".jpg", 1), width, height);
-                glass = asset(assets, name + "-glass.jpg", 2);     // a blur: half size is plenty
+                glass = asset(assets, name + "-glass.jpg", 1);     // already a half-size blur
                 if (cutOut) fg = sized(asset(assets, name + "-fg.webp", 1), width, height);
             } catch (Exception | OutOfMemoryError e) {
                 AppLog.w("scene " + name + ": " + e);
@@ -3824,10 +3799,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         fill.setShader(null);
     }
 
-    /** The scene's own darkening: Night is a little darker, and every scene after 9 pm. */
+    /** After 9 pm a photo dims a little (the night one is dark already). */
     private float ambDim() {
-        float d = ambScene == 0 ? 0.14f : 0;
-        return ambLate ? Math.max(d, 0.28f) : d;
+        return ambLate && ambScene != 0 ? 0.28f : 0;   // the night photo is dark enough already
     }
 
     /** The frosted copy of the photo, lined up with the photo on screen (it's 1/6 of its size). */
@@ -3905,7 +3879,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         }
         if (ambFrostShader != null) {
             aClock.setShader(frostShader(ambFrostShader, ambFrost));
-            aClock.setColorFilter(fill == 1 ? clockBright : fill == 2 ? clockDark : fill == 0 ? null : (ambTopLight ? clockDark : clockLight));
+            aClock.setColorFilter(fill == 1 ? clockBright : fill == 2 ? clockDark : fill == 3 ? clockLight : fill == 0 ? null : (ambTopLight ? clockDark : clockLight));
             aClock.setColor(0xFFFFFFFF);
             aClock.setAlpha(fill == 2 ? 204 : fill == 1 ? 230 : 255);
         } else {

@@ -176,13 +176,13 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   iOS 26 `photos.icloud.com/shared/album/<key>` links go through CloudKit's public resolve and the zone's changes,
   older `#B0…` links through sharedstreams; both undocumented by Apple). The weather takes the room the others leave;
   when the row is too full the photo card goes first, then *Today*.
-- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`), after couch-tv's home (MIT): weather =
-  couch-tv's five scenes in `assets/scenes` (Night, Dawn, Golden hour, Fog under clouds, Waterline in clear weather, as
-  `HomeView.sceneFor` picks them), each with a cut-out drawn over the clock so the scenery crosses the digits; mountains
-  = Unsplash (`Nature.mood`); my photos = the iCloud album. The clock is Antonio Light (`Ui.clock`), filled with the
-  scene's glass copy (lined up with the photo), with a rim, a sheen and a shadow; per-scene positions in `SCENE_AT`. The
-  date and weather sit on one line above it, today's line above the dock, and the apps in a glass dock of rounded
-  squares (dim at rest; focused: bigger, raised, a white ring and the name). No picks there.
+- *Home Settings* → *Theme* → *Ambience* (`Prefs.ambiance`, `ambianceSource`): time of day = three Unsplash photos in
+  `assets/scenes` (night 8 pm–5 am, dawn 5–9 am, day 9 am–8 pm; `HomeView.sceneFor`, credits in `CREDITS.txt`), each
+  with a blurred `-glass.jpg` for the clock; mountains = Unsplash (`Nature.mood`); my photos = the iCloud album. The
+  clock is Antonio Light (`Ui.clock`) in glass (after couch-tv, MIT), placed per photo in `SCENE_AT`; the date and
+  weather sit above it, today's line (or tonight's picks, with the sparkles button) above the apps, which use the glass
+  design's row. **Design rule from the owner: every change to this screen updates the design canvas's "Écran actuel"
+  board, rendered by `tools/preview_ambiance.py` from the same values, before they build.**
 - Picks: the focused card is the wide one and the background follows it; holding OK on a card plays its trailer
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
 - The moon button is the sleep timer (`Sleep`): 30/60/90 min, an exact alarm wakes `HomeReceiver`, which presses

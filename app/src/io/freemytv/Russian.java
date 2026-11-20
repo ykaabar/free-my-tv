@@ -164,6 +164,7 @@ final class Russian {
             case "Original: Amazon's home screen is back.": return "Оригинал: главный экран Amazon вернулся.";
             case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "Fire TV блокирует собственный ADB приложения. Один раз, на компьютере: ";
             case "Ambience · weather": return "Атмосфера · погода";
+            case "Ambience · time of day": return "Атмосфера · по времени суток";
             case "Ambience · mountains": return "Атмосфера · горы";
             case "Ambience · my photos": return "Атмосфера · мои фото";
             case "Tonight": return "Сегодня вечером";

@@ -165,6 +165,7 @@ final class German {
             case "Original: Amazon's home screen is back.": return "Original: Amazons Startbildschirm ist zurück.";
             case "Fire TV blocks the app's own ADB. Once, on the computer: ": return "Fire TV sperrt das eigene ADB der App. Einmal, am Computer: ";
             case "Ambience · weather": return "Ambiente · Wetter";
+            case "Ambience · time of day": return "Ambiente · nach Tageszeit";
             case "Ambience · mountains": return "Ambiente · Berge";
             case "Ambience · my photos": return "Ambiente · meine Fotos";
             case "Tonight": return "Heute Abend";
