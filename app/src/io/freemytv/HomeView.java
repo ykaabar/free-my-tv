@@ -4408,7 +4408,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 } else if (lightsRow == 4) {
                     Lights.setAutoOn(c, dx > 0);
                 } else {
-                    Lights.setAutoOff(c, dx > 0);
+                    Lights.setOffDelay(c, Lights.nextOffDelay(Lights.offDelay(c), dx));
                 }
                 click.move();
                 break;
@@ -4426,7 +4426,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 else if (lightsRow == 2) Lights.setSwatch(c, lightsSwatch, lightsError);
                 else if (lightsRow == 3) Lights.setMood(c, lightsMood, lightsError);
                 else if (lightsRow == 4) Lights.setAutoOn(c, !Lights.autoOn(c));
-                else if (lightsRow == 5) Lights.setAutoOff(c, !Lights.autoOff(c));
+                else if (lightsRow == 5) Lights.setOffDelay(c, Lights.nextOffDelay(Lights.offDelay(c), 1));
                 click.open();
                 break;
             case KeyEvent.KEYCODE_BACK:
@@ -4563,8 +4563,29 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         drawAutoRow(c, 4, T + 690 * k, x, right, Ui.tr("Acende à noite com a TV", "On in the evening with the TV",
                 "Se enciende de noche con la TV"), Ui.tr("Depois do pôr do sol, 30 min antes se chover",
                 "After sunset, 30 min before if it rains", "Tras la puesta de sol, 30 min antes si llueve"), Lights.autoOn(ctx));
-        drawAutoRow(c, 5, T + 770 * k, x, right, Ui.tr("Apaga com a TV", "Off with the TV", "Se apaga con la TV"), null,
-                Lights.autoOff(ctx));
+        drawDelayRow(c, 5, T + 770 * k, x, right, Ui.tr("Apaga com a TV", "Off with the TV", "Se apaga con la TV"),
+                Lights.offDelay(ctx));
+    }
+
+    /** A value picked with ← →: "‹ After 5 min ›" on the right, in amber unless it's "Never". */
+    private void drawDelayRow(Canvas c, int row, float y, float x, float right, String label, int minutes) {
+        lpLabel.setColor(lightsRow == row ? 0xFFF5F3EE : 0xFFC9CBD1);
+        c.drawText(label, x, y, lpLabel);
+        String value = Lights.offDelayName(minutes);
+        lpValue.setColor(minutes < 0 ? 0xFFA3A6AE : 0xFFFFB547);
+        float vw = lpValue.measureText(value), cy = y - 8 * k;
+        lpBox.set(right - vw - 88 * k, cy - 24 * k, right, cy + 24 * k);
+        lpFill.setColor(0x14F5F3EE);
+        c.drawRoundRect(lpBox, 24 * k, 24 * k, lpFill);
+        c.drawText(value, right - 44 * k, y, lpValue);
+        if (lightsRow == row) {
+            lpValue.setColor(0xFFF5F3EE);
+            c.drawText("›", right - 16 * k, y, lpValue);
+            c.drawText("‹", lpBox.left + 30 * k, y, lpValue);
+            lpBox.inset(-7 * k, -7 * k);
+            c.drawRoundRect(lpBox, 31 * k, 31 * k, lpRing);
+        }
+        lpValue.setColor(0xFFC9CBD1);
     }
 
     private void drawAutoRow(Canvas c, int row, float y, float x, float right, String label, String hint, boolean on) {

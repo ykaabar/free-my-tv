@@ -45,19 +45,43 @@ final class LightsAuto {
         MAIN.postDelayed(tick, MIN);
     }
 
+    private static PowerManager.WakeLock awake;
+
+    /**
+     * The TV went to standby: the strip turns off at once or after the delay picked in its panel. The stick stays
+     * awake until then (a sleeping stick runs no timer and may drop the Wi-Fi), then a few seconds to reach the strip.
+     */
     private static void off() {
         screenOn = false;
         MAIN.removeCallbacks(tick);
-        if (!Lights.autoOff(app) || !Lights.on(app)) return;
-        // The stick is going to sleep: a few seconds awake to reach the strip.
+        MAIN.removeCallbacks(offLater);
+        int minutes = Lights.offDelay(app);
+        if (minutes < 0 || !Lights.on(app)) return;
         PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
-        if (pm != null) pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FreeMyTV:lights").acquire(10_000);
+        if (pm != null) {
+            release();
+            awake = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FreeMyTV:lights");
+            awake.acquire(minutes * MIN + 15_000);
+        }
+        if (minutes == 0) offLater.run();
+        else MAIN.postDelayed(offLater, minutes * MIN);
+    }
+
+    private static final Runnable offLater = () -> {
+        if (screenOn || !Lights.on(app)) return;
         Lights.setOn(app, false, null);
         AppLog.w("lights: off with the TV");
+    };
+
+    private static void release() {
+        if (awake != null && awake.isHeld()) awake.release();
+        awake = null;
     }
 
     private static void woke() {
         screenOn = true;
+        MAIN.removeCallbacks(offLater);   // back before the delay ran out: the strip stays as it is
+        release();
         Lights.setFiredAt(app, 0);   // a new wake-up: the evening may turn it on again
         MAIN.removeCallbacks(tick);
         HomeData.get(app).refreshIfStale();

@@ -187,6 +187,9 @@ final class Russian {
             case "On in the evening with the TV": return "Вечером включается с ТВ";
             case "After sunset, 30 min before if it rains": return "После заката, за 30 мин при дожде";
             case "Off with the TV": return "Выключается с ТВ";
+            case "Right away": return "Сразу";
+            case "After ": return "Через ";
+            case "Never": return "Никогда";
             case "Tonight on": return "Сегодня вечером на";
             case "Tonight: apps": return "Сегодня вечером: приложения";
             case "None": return "Нет";

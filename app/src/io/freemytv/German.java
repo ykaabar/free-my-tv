@@ -188,6 +188,9 @@ final class German {
             case "On in the evening with the TV": return "Abends mit dem Fernseher an";
             case "After sunset, 30 min before if it rains": return "Nach Sonnenuntergang, bei Regen 30 Min. vorher";
             case "Off with the TV": return "Mit dem Fernseher aus";
+            case "Right away": return "Sofort";
+            case "After ": return "Nach ";
+            case "Never": return "Nie";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";
             case "None": return "Keine";

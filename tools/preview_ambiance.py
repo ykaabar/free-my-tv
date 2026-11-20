@@ -76,7 +76,7 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
 # The LED strip's panel (OK held on the bulb), same values as HomeView.drawLightsPanel: LP_W 1040, LP_H 820, pad 44
 SWATCHES=[(255,201,138),(243,241,234),(47,75,216),(139,63,217),(229,72,77),(47,179,107)]
 MOODS=["Cinéma","Tamisé","Soirée","Lecture"]
-def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_swatch=2, focus_mood=0, auto_on=True, auto_off=True):
+def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_swatch=2, focus_mood=0, auto_on=True, off_delay=0):
     render(name, out)
     im=Image.open(out).convert("RGBA"); W,H=im.size
     im.alpha_composite(Image.new("RGBA",(W,H),(0,0,0,0x99)))
@@ -120,17 +120,25 @@ def render_lights(name, out, row=2, on=True, bright=70, swatch=0, mood=1, focus_
         if row==3 and i==focus_mood: d.rounded_rectangle((px-7,top-7,px+pw+7,top+71),radius=22,outline=(245,243,238),width=4)
         px+=pw+14
     rr((x,T+630,R,T+631.5),0,(245,243,238,26)); d=ImageDraw.Draw(im)
-    for r,y,label,hint,val in [(4,T+690,"S'allume le soir avec la TV","Après le coucher du soleil, 30 min avant s'il pleut",auto_on),
-                               (5,T+770,"S'éteint avec la TV",None,auto_off)]:
+    for r,y,label,hint,val in [(4,T+690,"S'allume le soir avec la TV","Après le coucher du soleil, 30 min avant s'il pleut",auto_on)]:
         d.text((x,y),label,font=F(500,22),fill=lab(r),anchor="ls")
         if hint: d.text((x,y+28),hint,font=F(400,18),fill=(163,166,174),anchor="ls")
         cy=y-8+(14 if hint else 0); box=(R-88,cy-24,R,cy+24)
         rr(box,24,(255,181,71) if val else (245,243,238,51)); d=ImageDraw.Draw(im)
         kx=box[2]-24 if val else box[0]+24; d.ellipse((kx-18,cy-18,kx+18,cy+18),fill=(11,13,18) if val else (245,243,238))
         if row==r: d.rounded_rectangle((box[0]-7,box[1]-7,box[2]+7,box[3]+7),radius=31,outline=(245,243,238),width=4)
+    # off with the TV: a delay picked with ← → (HomeView.drawDelayRow, Lights.OFF_DELAYS)
+    y=T+770; d.text((x,y),"S'éteint avec la TV",font=F(500,22),fill=lab(5),anchor="ls")
+    value="Tout de suite" if off_delay==0 else "Jamais" if off_delay<0 else f"Après {off_delay} min"
+    f=F(500,22); vw=d.textlength(value,font=f); cy=y-8; box=(R-vw-88,cy-24,R,cy+24)
+    rr(box,24,(245,243,238,20)); d=ImageDraw.Draw(im)
+    d.text((R-44,y),value,font=f,fill=(163,166,174) if off_delay<0 else (255,181,71),anchor="rs")
+    if row==5:
+        d.text((R-16,y),"›",font=f,fill=(245,243,238),anchor="rs"); d.text((box[0]+30,y),"‹",font=f,fill=(245,243,238),anchor="rs")
+        d.rounded_rectangle((box[0]-7,box[1]-7,box[2]+7,box[3]+7),radius=31,outline=(245,243,238),width=4)
     im.convert("RGB").save(out,quality=88)
 if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
     render("day","ecran-day-cesoir.jpg",picks=True)                 # Canal+ focused: tonight on Canal+
     render("day","ecran-day-cesoir-mix.jpg",picks=True,focus=5)     # YouTube focused: the mix
-    render_lights("night","ecran-ruban.jpg")                        # OK held on the bulb: the LED strip's panel
+    render_lights("night","ecran-ruban.jpg",row=5,off_delay=5)                        # OK held on the bulb: the LED strip's panel

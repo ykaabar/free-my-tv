@@ -50,9 +50,40 @@ final class Lights {
 
     /** LightsAuto: on in the evening when the TV wakes up; off when it goes to standby. */
     static boolean autoOn(Context c) { return sp(c).getBoolean("autoOn", true); }
-    static boolean autoOff(Context c) { return sp(c).getBoolean("autoOff", true); }
+    /** How long after the TV goes to standby the strip turns off, in minutes: 0 at once, -1 never. */
+    static final int[] OFF_DELAYS = {0, 1, 5, 15, 30, -1};
+    private static String[] offDelayNames;
+
+    static int offDelay(Context c) {
+        SharedPreferences p = sp(c);
+        if (p.contains("offDelay")) return p.getInt("offDelay", 0);
+        return p.getBoolean("autoOff", true) ? 0 : -1;   // the on/off switch it replaces
+    }
+
+    static void setOffDelay(Context c, int minutes) { sp(c).edit().putInt("offDelay", minutes).apply(); }
+
+    /** "Right away", "After 5 min", "Never": built once, the panel draws them on every frame. */
+    static String offDelayName(int minutes) {
+        if (offDelayNames == null) {
+            String[] n = new String[OFF_DELAYS.length];
+            for (int i = 0; i < n.length; i++) {
+                int m = OFF_DELAYS[i];
+                n[i] = m == 0 ? Ui.tr("Na hora", "Right away", "Al instante") : m < 0 ? Ui.tr("Nunca", "Never", "Nunca")
+                        : Ui.tr("Depois de ", "After ", "Después de ") + m + " min";
+            }
+            offDelayNames = n;
+        }
+        for (int i = 0; i < OFF_DELAYS.length; i++) if (OFF_DELAYS[i] == minutes) return offDelayNames[i];
+        return offDelayNames[0];
+    }
+
+    /** The next (or previous) delay in OFF_DELAYS, wrapping around. */
+    static int nextOffDelay(int minutes, int dir) {
+        int at = 0;
+        for (int i = 0; i < OFF_DELAYS.length; i++) if (OFF_DELAYS[i] == minutes) at = i;
+        return OFF_DELAYS[(at + dir + OFF_DELAYS.length) % OFF_DELAYS.length];
+    }
     static void setAutoOn(Context c, boolean on) { sp(c).edit().putBoolean("autoOn", on).apply(); }
-    static void setAutoOff(Context c, boolean on) { sp(c).edit().putBoolean("autoOff", on).apply(); }
     static long firedAt(Context c) { return sp(c).getLong("firedAt", 0); }
     static void setFiredAt(Context c, long at) { sp(c).edit().putLong("firedAt", at).apply(); }
 

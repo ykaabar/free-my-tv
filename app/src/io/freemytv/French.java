@@ -180,6 +180,9 @@ final class French {
             case "On in the evening with the TV": return "S'allume le soir avec la TV";
             case "After sunset, 30 min before if it rains": return "Après le coucher du soleil, 30 min avant s'il pleut";
             case "Off with the TV": return "S'éteint avec la TV";
+            case "Right away": return "Tout de suite";
+            case "After ": return "Après ";
+            case "Never": return "Jamais";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";
             case "None": return "Aucun";
