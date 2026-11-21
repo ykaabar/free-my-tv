@@ -193,6 +193,9 @@ final class German {
             case "Never": return "Nie";
             case "Light on": return "An";
             case "Light off": return "Aus";
+            case "Hold OK: keep the colour and brightness in use in this mood": return "OK halten: aktuelle Farbe und Helligkeit in dieser Stimmung speichern";
+            case "Saved in ": return "Gespeichert in ";
+            case "Back to the original: ": return "Zurück zum Original: ";
             case "Good night": return "Gute Nacht";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";

@@ -4355,6 +4355,31 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private final Lights.Done lightsError = error -> showToast(Ui.tr("A fita de LED não responde: ",
             "The LED strip isn't answering: ", "La tira LED no responde: ") + error);
 
+    /** OK held on a mood: it keeps the strip's colour and brightness (or goes back to its own, see Lights.keepMood). */
+    private static final long MOOD_HOLD_MS = 800;
+    private boolean lightsHeld;
+    private String lightsSaved;          // "Saved in Cinema", in place of the hint for a moment
+    private long lightsSavedAt;
+    private final Runnable lightsHold = this::moodHeld;
+    private final Runnable lightsSavedEnd = this::savedEnd;
+
+    private void savedEnd() { if (lightsOpen) lightsLayer.invalidate(); }
+
+    private void moodHeld() {
+        if (!lightsOpen || !lightsOkDown || lightsRow != 3) return;
+        lightsHeld = true;
+        String name = Lights.moodName(lightsMood);
+        boolean kept = Lights.keepMood(getContext(), lightsMood);
+        lightsSaved = (kept ? Ui.tr("Guardado em ", "Saved in ", "Guardado en ")
+                : Ui.tr("De volta ao original: ", "Back to the original: ", "De vuelta al original: ")) + name;
+        lightsSavedAt = SystemClock.uptimeMillis();
+        handler.postDelayed(lightsSavedEnd, 2600);
+        click.open();
+        lightsLayer.invalidate();
+        statusDirty = true;
+        status.invalidate();
+    }
+
     private boolean canLightsPanel() {
         return !sheetOpen && zone == Z_TOP && topIndex >= 3 && topIndex - 3 < lightButtons.size()
                 && lightButtons.get(topIndex - 3).kind == HomeApps.LIGHTS;
@@ -4379,6 +4404,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
 
     private void closeLights() {
         lightsOpen = false;
+        handler.removeCallbacks(lightsHold);
         click.move();
         lightsLayer.animate().cancel();
         lightsLayer.animate().alpha(0).scaleX(0.97f).scaleY(0.97f).setDuration(160)
@@ -4426,10 +4452,19 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 if (down) {
-                    if (e.getRepeatCount() == 0) lightsOkDown = true;   // the release of the hold that opened it does nothing
+                    if (e.getRepeatCount() == 0) {
+                        lightsOkDown = true;   // the release of the hold that opened it does nothing
+                        lightsHeld = false;
+                        handler.removeCallbacks(lightsHold);
+                        if (lightsRow == 3) handler.postDelayed(lightsHold, MOOD_HOLD_MS);
+                    }
                     return true;
                 }
-                if (!lightsOkDown) return true;
+                handler.removeCallbacks(lightsHold);
+                if (!lightsOkDown || lightsHeld) {
+                    lightsOkDown = lightsHeld = false;
+                    return true;
+                }
                 lightsOkDown = false;
                 if (lightsRow == 0) Lights.toggle(c, lightsError);
                 else if (lightsRow == 2) Lights.setSwatch(c, lightsSwatch, lightsError);
@@ -4565,6 +4600,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             }
             px += pw + 14 * k;
         }
+        boolean saved = lightsSaved != null && SystemClock.uptimeMillis() - lightsSavedAt < 2500;
+        if (saved) {
+            lpHint.setColor(0xFFFFB547);
+            c.drawText(lightsSaved, x, top + 92 * k, lpHint);
+            lpHint.setColor(0xFFA3A6AE);
+        } else if (lightsRow == 3) c.drawText(Ui.tr("OK segurado: guardar a cor e o brilho atuais neste ambiente",
+                "Hold OK: keep the colour and brightness in use in this mood",
+                "OK mantenido: guardar el color y el brillo actuales en este ambiente"), x, top + 92 * k, lpHint);
 
         // Automations: two small switches.
         lpFill.setColor(0x1AF5F3EE);

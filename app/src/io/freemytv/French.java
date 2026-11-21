@@ -185,6 +185,9 @@ final class French {
             case "Never": return "Jamais";
             case "Light on": return "Allumé";
             case "Light off": return "Éteint";
+            case "Hold OK: keep the colour and brightness in use in this mood": return "Maintiens OK : garder la couleur et la luminosité actuelles dans cette ambiance";
+            case "Saved in ": return "Enregistré dans ";
+            case "Back to the original: ": return "Retour à l'original : ";
             case "Good night": return "Bonne nuit";
             case "Tonight on": return "Ce soir sur";
             case "Tonight: apps": return "Ce soir : applis";

@@ -192,6 +192,9 @@ final class Russian {
             case "Never": return "Никогда";
             case "Light on": return "Вкл.";
             case "Light off": return "Выкл.";
+            case "Hold OK: keep the colour and brightness in use in this mood": return "Удерживайте OK: сохранить текущий цвет и яркость в этом режиме";
+            case "Saved in ": return "Сохранено в ";
+            case "Back to the original: ": return "Снова исходный: ";
             case "Good night": return "Спокойной ночи";
             case "Tonight on": return "Сегодня вечером на";
             case "Tonight: apps": return "Сегодня вечером: приложения";

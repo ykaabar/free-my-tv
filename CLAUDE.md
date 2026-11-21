@@ -202,7 +202,7 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
 - The light button (`Lights`, over `Tuya`: protocols 3.3 to 3.5 on TCP 6668, no library) drives a Tuya LED strip on
   the local network: OK turns it on or off, OK held opens its panel (`HomeView.drawLightsPanel`: switch, brightness,
-  six colours, four moods, two automations); `LightsAuto` turns it off when the TV goes to standby (at once or after the delay picked in the panel,
+  six colours, four moods (OK held on a mood keeps the colour and brightness in use in it, held again on it unchanged brings back the built-in one; `Lights.keepMood`), two automations); `LightsAuto` turns it off when the TV goes to standby (at once or after the delay picked in the panel,
   `Lights.OFF_DELAYS`, the stick held awake until then) and on when it
   wakes in the evening (from sunset, 30 min before when it rains; once per evening while it stays on), from the screen
   broadcasts, in one process only (the main one on Fire TV, kept alive by FireHomeService; `:home` elsewhere), so the

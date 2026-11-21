@@ -137,9 +137,30 @@ final class Lights {
     }
 
     static void setMood(Context c, int mood, Done done) {
-        sp(c).edit().putBoolean("on", true).putInt("mood", mood).putInt("swatch", MOOD_SWATCH[mood])
-                .putInt("bright", MOOD_BRIGHT[mood]).apply();
+        sp(c).edit().putBoolean("on", true).putInt("mood", mood).putInt("swatch", moodSwatch(c, mood))
+                .putInt("bright", moodBright(c, mood)).apply();
         push(c, done);
+    }
+
+    /** A mood's colour and brightness: the person's own (OK held on it in the panel), else the built-in ones. */
+    static int moodSwatch(Context c, int mood) { return sp(c).getInt("moodSwatch" + mood, MOOD_SWATCH[mood]); }
+    static int moodBright(Context c, int mood) { return sp(c).getInt("moodBright" + mood, MOOD_BRIGHT[mood]); }
+
+    /**
+     * OK held on a mood: keeps the strip's colour and brightness in it. Held on the mood already in use and left as it
+     * is, it goes back to the built-in one instead. True when it was kept, false when it went back.
+     */
+    static boolean keepMood(Context c, int mood) {
+        SharedPreferences p = sp(c);
+        if (mood(c) == mood && p.contains("moodSwatch" + mood)) {
+            p.edit().remove("moodSwatch" + mood).remove("moodBright" + mood).apply();
+            setMood(c, mood, null);
+            return false;
+        }
+        p.edit().putInt("moodSwatch" + mood, swatch(c)).putInt("moodBright" + mood, brightness(c))
+                .putBoolean("on", true).putInt("mood", mood).apply();
+        push(c, null);
+        return true;
     }
 
     private static void push(Context c, Done done) {
