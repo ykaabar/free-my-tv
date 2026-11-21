@@ -186,7 +186,7 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
   `assets/scenes` (the same frame, aligned to the pixel, so only the light changes, in an 8 s fade: dawn from 45 min
   before sunrise to 1 h 30 after, day, sunset from 1 h before sunset to 40 min after, then night;
   `HomeView.sceneFor`, credits in `CREDITS.txt`), each with a blurred `-glass.jpg` for the clock and a `-fg.webp`
-  cut-out (one outline for the four: the summit crosses the big clock, as on iOS);
+  cut-out (one outline for the four: the summit crosses the big clock, as on iOS; drawn opaque in its own layer, `fgLayer`, that stays on the photo while the clock rises or the drawer moves);
   the weather over it (`HomeView.wxKind`, from Open-Meteo's code and the rain now): cloudy, fog, rain, snow and storm
   grade the photo, its cut-out and the plain clock glass (`graded`), veil the sky or the valley (`drawWeatherVeils`),
   and rain and snow fall in their own layer, redrawn alone on each frame and hidden under the drawer (`drawWeather`;

@@ -88,7 +88,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     private static final long TOAST_MS = 6000, FADE_MS = 800;
     /** Blur radii of the shadow and shadowDeep paints (Shadows needs them to draw the same blur on older TVs). */
     private static final float SHADOW_BLUR = 26, DEEP_BLUR = 30;
-    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7, PANEL = 8, WEATHER = 9;
+    private static final int SKY = 0, HERO = 1, STATUS = 2, PLATTER = 3, TILES = 4, DRAWER = 5, SHEET = 6, TOAST = 7, PANEL = 8, WEATHER = 9, FG = 10;
     private static final int Z_STATUS = 0, Z_HERO = 1, Z_SHELF = 2, Z_DRAWER = 3;
     private static final ExecutorService LOADER = Executors.newSingleThreadExecutor();
     // Light design (the L_ constants): title, tab bar, three recommendation cards and the shelf.
@@ -125,7 +125,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         @Override public boolean clickable(int id) { return (id - 1) / 1000 != WIDGETS || (id - 1) % 1000 == 3; }   // the photo opens
     });
     private final RectF a11yRect = new RectF();
-    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer, lightsLayer, weatherLayer;
+    private final Layer sky, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, toastLayer, lightsLayer, weatherLayer, fgLayer;
     private int zone = Z_SHELF;
 
     // Night look (like Apple's "Automatic" appearance): darker from sunset to sunrise, with a 2 s transition.
@@ -344,6 +344,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
                 case SHEET: drawSheet(c); break;
                 case PANEL: drawLightsPanel(c); break;
                 case WEATHER: drawWeather(c); break;
+                case FG: if (amb) drawAmbianceFg(c); break;
                 default: drawToast(c); break;
             }
             scene.setOffset(0, 0);
@@ -398,6 +399,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sky = new Layer(a, SKY);
         weatherLayer = new Layer(a, WEATHER);   // rain or snow over the scenery, redrawn alone on every frame
         heroLayer = new Layer(a, HERO);
+        fgLayer = new Layer(a, FG);   // Ambience: the mountain in front of the clock, fixed on the photo (see drawAmbianceFg)
         status = new Layer(a, STATUS);
         platter = new Layer(a, PLATTER);
         tiles = new Layer(a, TILES);
@@ -413,7 +415,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // (without them every frame replayed the whole photo and the scenery).
         boolean layers = !Ui.LEGACY || HomeMode.FIRE;
         for (View v : new View[] {heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer}) v.setLayerType(layers ? LAYER_TYPE_HARDWARE : LAYER_TYPE_NONE, null);
-        for (View v : new View[] {sky, weatherLayer, heroLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer, toastLayer}) {
+        for (View v : new View[] {sky, weatherLayer, heroLayer, fgLayer, status, platter, tiles, drawerLayer, sheetLayer, lightsLayer, toastLayer}) {
             v.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);   // TalkBack reads the items (Spoken)
             addView(v);
         }
@@ -762,7 +764,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // glass shows the background where it ended up.
         if (tilesMoving || tilesDirty) tiles.invalidate();
         if (statusMoving || statusDirty || bgFading) status.invalidate();
-        if (heroMoving || heroDirty || heroFading) heroLayer.invalidate();
+        if (heroMoving || heroDirty || heroFading) invalidateHero();
         if (drawerItemsMoving || drawerDirty || bgFading || photoFading) drawerLayer.invalidate();
         if (gridMoving || gridDirty) sheetLayer.invalidate();
         if (drawerMoving || bgFading || ambFading) sky.invalidate();
@@ -774,9 +776,9 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             status.invalidate();
             if (hero != null && hero.clock) {
                 refreshHero(false);
-                heroLayer.invalidate();
+                invalidateHero();
             }
-            if (!picksOn() || amb) heroLayer.invalidate();
+            if (!picksOn() || amb) invalidateHero();
         }
 
         // Busy: something is moving (rain and snow too: idle, frames come once a second and they'd jump), or the
@@ -810,6 +812,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float shift = SHIFT * k;
         float lift = -d * shift;
         show(heroLayer, top, lift);
+        // The cut-out stays on the photo (which doesn't move), opaque: it is the photo itself, so it only hides the clock
+        // behind the summit, whatever the clock's opacity. Redrawn as the drawer moves: it follows the clock's band and
+        // the photo's veil.
+        fgLayer.setVisibility(amb && top > 0.002f ? VISIBLE : INVISIBLE);
+        fgLayer.invalidate();
         show(status, top, lift);
         show(platter, home, lift);
         show(tiles, home, lift);
@@ -822,6 +829,11 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         float scale = 1.04f - 0.04f * s;
         sheetLayer.setScaleX(scale);
         sheetLayer.setScaleY(scale);
+    }
+
+    private void invalidateHero() {
+        heroLayer.invalidate();
+        fgLayer.invalidate();
     }
 
     private static void show(View v, float alpha, float translationY) {
@@ -2488,7 +2500,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Prefs.setAmbiancePicks(on);
             layoutCards();
             heroDirty = statusDirty = true;
-            heroLayer.invalidate();
+            invalidateHero();
             return;
         }
         if (it.kind == HomeApps.LIGHTS) {
@@ -3915,25 +3927,33 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         drawGlassClock(c, at, left);
         ambShiftY = 0;
         c.restore();
-        if (ambFg != null && lift < at[2] * 0.5f * k) {   // risen past the summit: nothing left to cross
-            // The scenery in front of the clock: the peaks, the volcano and the hills cross the digits. Only the clock's
-            // band is drawn (elsewhere the cut-out is the photo itself): a third of the work on every frame.
-            float top = at[1] * k - lift, bottom = (at[1] + 0.82f * at[2]) * k - lift;
-            float sy = (float) ambFg.getHeight() / h;
-            ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
-            ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
-            ambFgPaint.setColorFilter(graded(ambDim()));   // the cut-out in the same light as the photo behind
-            // One light to the next: the old cut-out stays whole under the new one fading in (the same outline), so
-            // the clock never shows through the summit halfway.
-            if (ambFadeAt != 0 && ambFgOld != null) {
-                ambFgPaint.setAlpha(255);
-                c.drawBitmap(ambFgOld, ambSrc, ambDst, ambFgPaint);
-            }
-            ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen)));
-            c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
-        }
         if (ambPicks()) drawTonight(c);
         else drawAmbianceToday(c);
+    }
+
+    /**
+     * The scenery in front of the clock: the peaks cross the digits. Only the clock's band is drawn (elsewhere the
+     * cut-out is the photo itself), where the clock really is on screen (risen for the picks, shifted by the drawer), in
+     * the photo's light and veil.
+     */
+    private void drawAmbianceFg(Canvas c) {
+        if (ambFg == null || ambScene < 0) return;
+        float[] at = SCENE_AT[ambScene];
+        float lift = ambLift.value * AMB_LIFT * k - heroLayer.getTranslationY();
+        if (lift >= at[2] * 0.5f * k + SHIFT * k * 0.35f) return;   // risen past the summit: nothing left to cross
+        float top = Math.max(0, at[1] * k - lift), bottom = (at[1] + 0.82f * at[2]) * k - lift;
+        if (bottom <= top) return;
+        float sy = (float) ambFg.getHeight() / h;
+        ambSrc.set(0, Math.round(top * sy), ambFg.getWidth(), Math.min(ambFg.getHeight(), Math.round(bottom * sy)));
+        ambDst.set(0, ambSrc.top / sy, w, ambSrc.bottom / sy);
+        ambFgPaint.setColorFilter(graded(Math.max(0.62f * Ui.clamp(drawer.value), ambDim())));   // as drawSky
+        // One light to the next: the old cut-out stays whole under the new one fading in, as the photos do.
+        if (ambFadeAt != 0 && ambFgOld != null) {
+            ambFgPaint.setAlpha(255);
+            c.drawBitmap(ambFgOld, ambSrc, ambDst, ambFgPaint);
+        }
+        ambFgPaint.setAlpha(ambFadeAt == 0 ? 255 : Math.round(255 * fadeEase(ambFadeAt, SystemClock.uptimeMillis(), ambFadeLen)));
+        c.drawBitmap(ambFg, ambSrc, ambDst, ambFgPaint);
     }
 
     /** "Wednesday 18 November   ☁ 8° Cloudy", on one line, centered (left-aligned on the Fog scene). */
@@ -4739,7 +4759,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         if (kind != wxLastKind) {    // the weather changed (or the scene): the photo and its cut-out in the new light
             wxLastKind = kind;
             sky.invalidate();
-            heroLayer.invalidate();
+            invalidateHero();
         }
         boolean want = (kind == WX_RAIN || kind == WX_STORM || kind == WX_SNOW) && drawer.value < 0.98f && w > 0;
         if (!want) {
