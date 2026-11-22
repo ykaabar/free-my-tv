@@ -2610,7 +2610,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private boolean canTrailer() {
-        return !sheetOpen && zone == Z_CARDS && cardIndex < cards.size() && Recs.hasKey(getContext());
+        return !sheetOpen && zone == Z_CARDS && cardIndex < cards.size() && Recs.hasKey(getContext())
+                && cards.get(cardIndex).id != 0;   // a TV programme TMDB doesn't know has no trailer
     }
 
     /** Fades the background to the wide card's photo (once it's ready). */
@@ -3101,10 +3102,25 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         // Ambience: the focused app's service (Canal+ focused: tonight on Canal+); any other app, the mix.
         List<Recs.Pick> list = amb && picksPkg != null ? recs.forApp(picksPkg) : null;
         String service = list == null ? null : Recs.serviceKey(picksPkg);
-        if (list == null) list = recs.now(TAB_KIND[tab]);
+        // The evening on TV (France), from 5 pm: in place of the mix, and for a channel's app (TF1+, M6+…). Six
+        // programmes, three at a time: → past the last card shows the next three.
+        List<Recs.Pick> onTv = amb ? recs.tonightOnTv() : null;
+        if (onTv != null && (list == null || recs.isChannelApp(picksPkg))) {
+            tvAll = onTv;
+            int pages = (onTv.size() + 2) / 3;
+            tvPage = Math.max(0, Math.min(tvPage, pages - 1));
+            list = new ArrayList<>(onTv.subList(tvPage * 3, Math.min(onTv.size(), tvPage * 3 + 3)));
+            service = null;
+        } else {
+            tvAll = null;
+            tvPage = 0;
+            if (list == null) list = recs.now(TAB_KIND[tab]);
+        }
         if (amb) {
-            String head = service == null ? Ui.tr("Hoje à noite", "Tonight", "Esta noche")
+            String head = tvAll != null ? Ui.tr("Hoje à noite na TV", "Tonight on TV", "Esta noche en la tele")
+                    : service == null ? Ui.tr("Hoje à noite", "Tonight", "Esta noche")
                     : Ui.tr("Hoje à noite no", "Tonight on", "Esta noche en") + " " + Recs.serviceName(service);
+            if (tvAll != null && tvAll.size() > 3) head += "   " + (tvPage + 1) + "/" + ((tvAll.size() + 2) / 3);
             ambHead = head.toUpperCase(Ui.locale());
         }
         if (!samePicks(list, cards)) {
@@ -4208,7 +4224,17 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             case Z_CARDS:
                 if (dx != 0) {
                     int next = Math.max(0, Math.min(n - 1, cardIndex + dx));
-                    if (next == cardIndex) return true;
+                    if (next == cardIndex) {
+                        // Tonight on TV: past the edge, the next (or previous) three programmes.
+                        int pages = tvAll == null ? 1 : (tvAll.size() + 2) / 3, page = tvPage + dx;
+                        if (page < 0 || page >= pages) return true;
+                        tvPage = page;
+                        updateCards();
+                        cardIndex = dx > 0 ? 0 : Math.max(0, Math.min(3, cards.size()) - 1);
+                        retarget(false);
+                        click.move();
+                        return true;
+                    }
                     cardIndex = next;
                 } else if (dy < 0) {
                     zone = Z_TOP;
@@ -4248,6 +4274,8 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
     }
 
     private final String[] ambMeta = {"", "", ""};
+    private List<Recs.Pick> tvAll;      // tonight on TV, all of it (Ambience), or null; the cards show page tvPage
+    private int tvPage;
     private String picksPkg;            // the app "Tonight" follows (Ambience): the last one focused on the shelf
     private String ambHead = "";
     private final Runnable followShelf = () -> {
@@ -4276,13 +4304,14 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
             Recs.Pick p = i < cards.size() ? cards.get(i) : null;
             StringBuilder sb = new StringBuilder();
             if (p != null) {
-                if (p.fresh == 2) sb.append(Ui.tr("Nova temporada", "New season", "Nueva temporada"));
+                if (Recs.TV.equals(p.app)) sb.append(p.meta);   // "TF1 · 21:10 · Film"
+                else if (p.fresh == 2) sb.append(Ui.tr("Nova temporada", "New season", "Nueva temporada"));
                 else if (p.fresh == 1) sb.append(Ui.tr("Novo", "New", "Nuevo"));
                 if (p.rating >= 1) {
                     if (sb.length() > 0) sb.append(" · ");
                     sb.append("★ ").append(String.format(Ui.locale(), "%.1f", p.rating));
                 }
-                String app = Recs.serviceName(p);
+                String app = Recs.TV.equals(p.app) ? null : Recs.serviceName(p);
                 if (app != null && !app.isEmpty()) {
                     if (sb.length() > 0) sb.append(" · ");
                     sb.append(app);

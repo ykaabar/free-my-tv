@@ -21,7 +21,7 @@ def grade(img,kind):
     g=ImageEnhance.Color(img.convert("RGB")).enhance(sat)
     keep=(1-a)*b; g=Image.merge("RGB",[ch.point(lambda v,c=c:int(min(255,v*keep+c*a))) for ch,c in zip(g.split(),t)])
     g=g.convert("RGBA"); g.putalpha(alpha); return g
-def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert", weather=None):
+def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembre", wx="☁ 8° Couvert", weather=None, tv=False):
     dt,ct,size,left,dark,fillm,cut=SC[name]; W,H=1920,1080
     if picks: dt-=110; ct-=110   # "Tonight" shown: the date and the clock rise (HomeView.AMB_LIFT)
     im=grade(Image.open(P+f"{name}.jpg").convert("RGBA"),weather)
@@ -89,12 +89,16 @@ def render(name, out, picks=False, focus=1, t="20:47", date="Vendredi 20 novembr
     if picks:
         cw,chh,gap=360,203,40; Lc=(W-(3*cw+2*gap))/2; bottom=814-48
         # "Tonight" follows the focused app when it's a streaming service (Recs.forApp), else the mix of them all
-        svc=SERVICES.get(APPS[focus][0]); metas=[svc]*3 if svc else ["CANAL+","Prime Video","TF1+"]
-        d.text((W/2,bottom-chh-22),"CE SOIR SUR "+svc.upper() if svc else "CE SOIR",font=ImageFont.truetype(inter,20),fill=(240,240,240),anchor="ms")
+        svc=None if tv else SERVICES.get(APPS[focus][0]); metas=[svc]*3 if svc else ["CANAL+","Prime Video","TF1+"]
+        # From 5 pm with "On TV" on (Recs.tonightOnTv): the evening on six channels, three cards at a time, → for the rest
+        head="CE SOIR À LA TÉLÉ   1/2" if tv else "CE SOIR SUR "+svc.upper() if svc else "CE SOIR"
+        d.text((W/2,bottom-chh-22),head,font=ImageFont.truetype(inter,20),fill=(240,240,240),anchor="ms")
+        TV=[("[Titre]","TF1 · 21:10 · Série"),("[Titre]","France 2 · 21:10 · Film"),("[Titre]","M6 · 21:10 · Magazine")]
         for i in range(3):
             x0=Lc+i*(cw+gap); d.rounded_rectangle((x0,bottom-chh,x0+cw,bottom),radius=18,fill=(40,40,52),outline=(255,255,255,40))
+            title,meta=TV[i] if tv else ("[Titre]","★ 7,4 · "+metas[i])
             d.text((x0+18,bottom-60),"[Affiche TMDB]",font=ImageFont.truetype(inter,18),fill=(200,200,200),anchor="ls")
-            d.text((x0+18,bottom-18),"[Titre] · ★ 7,4 · "+metas[i],font=ImageFont.truetype(inter,18),fill=(230,230,230),anchor="ls")
+            d.text((x0+18,bottom-18),title+" · "+meta,font=ImageFont.truetype(inter,18),fill=(230,230,230),anchor="ls")
     else:
         ft=ImageFont.truetype(inter,26); fq=ImageFont.truetype(inter,23)
         d.text((W/2,814-34-40),"Nour a 9 mois et 14 jours",font=ft,fill=(255,255,255),anchor="ms")
@@ -168,6 +172,7 @@ if __name__=="__main__":
     for n in SC: render(n, f"ecran-{n}.jpg")
     render("day","ecran-day-cesoir.jpg",picks=True)                 # Canal+ focused: tonight on Canal+
     render("day","ecran-day-cesoir-mix.jpg",picks=True,focus=5)     # YouTube focused: the mix
+    render("night","ecran-cesoir-tele.jpg",picks=True,focus=5,t="20:47",tv=True)   # after 5 pm: tonight on TV
     render_lights("night","ecran-ruban.jpg",row=5,off_delay=5)
     render("day","ecran-pluie.jpg",t="14:32",wx="🌧 9° Pluie",weather="rain")          # the same mountain in the weather
     render("dawn","ecran-brouillard.jpg",t="08:10",wx="🌫 3° Brouillard",weather="fog")

@@ -10,6 +10,7 @@
 # Optional secrets TUYA_ID, TUYA_KEY, TUYA_IP, TUYA_VERSION: the LED strip (tools/tuya_keys.py finds them).
 # Each build is numbered (the run number, the APK's versionCode). A family build is also published as a GitHub
 # release "family-<number>": the family's TVs check for it and offer to install it (Updater).
+# Both editions read tonight's French TV from this repository's "tv" branch (the "Tonight on TV" workflow).
 # Edition "family": the build to give to family and friends: the TMDB key only (the picks and the films screensaver);
 # no iCloud album, no LED strip, no Unsplash key (its free tier is meant for one app in testing, 50 requests an hour).
 name: Build the APK
@@ -106,6 +107,7 @@ jobs:
           temperature=auto
           disable_assistant=false
           updates=${UPDATES}
+          tv_guide=${REPO}
           EOF
           if [ -n "$KEYSTORE_BASE64" ]; then
             printf '%s' "$KEYSTORE_BASE64" | base64 -d > freemytv.keystore

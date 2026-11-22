@@ -198,6 +198,13 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
 - Picks come only from the services left on in *Home Settings* → *Tonight: apps* (`Prefs.pickApp`; an app installed
   without a subscription is turned off there). In Ambience, "Tonight" follows the app focused on the shelf: that
   service's own list (`Recs.forApp`, from `byApp`), the mix of them all for any other app.
+- Tonight on French TV (`Recs.tonightOnTv`, `tv_guide` = owner/repo, filled in by the APK workflow): the *Tonight on
+  TV* workflow (`.github/workflows/tv.yml`, twice a day) runs `tools/tv_tonight.py`, which keeps the evening programme
+  (starting 20:40-22:00, 25 min or more) of TF1, France 2, M6, Arte, TMC and W9 from xmltvfr.fr's free TNT guide,
+  adds TMDB's backdrop when the titles match (else the guide's image), and force-pushes `tonight.json` to the `tv`
+  branch. The TVs read it from raw.githubusercontent.com (every 3 h at most). From 5 pm until the last one ends, with
+  *On TV* on in *Tonight: apps*, Ambience's "Tonight" shows it in place of the mix and for the channels' apps (TF1+,
+  M6+, france.tv, ARTE: known packages, else the app's name), three cards at a time, → past the last for the rest.
 - Picks: the focused card is the wide one and the background follows it; holding OK on a card plays its trailer
   (TMDB videos → the YouTube app); badges show TMDB's rating (30+ votes) and NEW / NEW SEASON (last 30 days).
 - The light button (`Lights`, over `Tuya`: protocols 3.3 to 3.5 on TCP 6668, no library) drives a Tuya LED strip on

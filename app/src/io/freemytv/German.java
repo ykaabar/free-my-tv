@@ -196,6 +196,8 @@ final class German {
             case "Hold OK: keep the colour and brightness in use in this mood": return "OK halten: aktuelle Farbe und Helligkeit in dieser Stimmung speichern";
             case "Saved in ": return "Gespeichert in ";
             case "Back to the original: ": return "Zurück zum Original: ";
+            case "On TV": return "Im Fernsehen";
+            case "Tonight on TV": return "Heute Abend im Fernsehen";
             case "Good night": return "Gute Nacht";
             case "Tonight on": return "Heute Abend auf";
             case "Tonight: apps": return "Heute Abend: Apps";

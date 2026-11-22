@@ -252,6 +252,7 @@ final class Recs {
     /** The streaming services with their app on this TV, as {key, name}: the settings' "Tonight" list. */
     static List<String[]> installedServices(Context c) {
         List<String[]> out = new ArrayList<>();
+        if (tvConfigured()) out.add(new String[] {TV, Ui.tr("Na TV", "On TV", "En la tele")});
         for (String[] s : SERVICES) {
             for (String pkg : s[2].split("\\|")) {
                 if (HomeApps.launchIntent(c.getPackageManager(), pkg) != null) {
@@ -265,7 +266,8 @@ final class Recs {
 
     /** Name of the service the pick is on ("Netflix"), or empty. */
     static String serviceName(Pick p) {
-        return p == null || p.app == null ? "" : SERVICE_NAME.get(p.app);
+        String name = p == null || p.app == null ? null : SERVICE_NAME.get(p.app);
+        return name == null ? "" : name;
     }
 
     /** The pick's ready backdrop (or null: builds it in the background and notifies when it's ready). */
@@ -292,11 +294,14 @@ final class Recs {
     }
 
     private File imageFile(Pick p) {
-        return new File(new File(context.getCacheDir(), "recs"), p.backdrop.replace("/", ""));
+        String name = p.backdrop.startsWith("https://") ? "tv" + Integer.toHexString(p.backdrop.hashCode()) + ".jpg"
+                : p.backdrop.replace("/", "");
+        return new File(new File(context.getCacheDir(), "recs"), name);
     }
 
     /** With a key: fetches the list if stale or the time of day (morning/afternoon/night) changed; then the details. */
     void refreshIfStale() {
+        refreshTv();
         if (!hasKey(context) || fetching) return;
         long now = System.currentTimeMillis();
         long stamp = sourceStamp();   // a new key, country or installed streaming-app set refetches
@@ -743,7 +748,8 @@ final class Recs {
         //noinspection ResultOfMethodCallIgnored
         f.getParentFile().mkdirs();
         File part = new File(f.getPath() + ".part");
-        HttpURLConnection c = (HttpURLConnection) new URL(IMAGES + p.backdrop).openConnection();
+        String url = p.backdrop.startsWith("https://") ? p.backdrop : IMAGES + p.backdrop;
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(8000);
         c.setReadTimeout(20000);
         try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
@@ -887,6 +893,160 @@ final class Recs {
         } catch (java.text.ParseException e) {
             return 0;
         }
+    }
+
+    // MARK: - Tonight on TV (France: TF1, France 2, M6, Arte, TMC, W9)
+
+    /** Our key for "Tonight on TV" in the settings' list of services (Prefs.pickApp). */
+    static final String TV = "tv";
+    /** Each channel: the words in its app's name on the TV, then the apps' packages (Google TV | Fire TV | other). */
+    private static final String[][] CHANNEL_APPS = {
+        {"TF1", "\\btf1\\b", "fr.tf1.mytf1|fr.tf1.mytf1.tv"},
+        {"TMC", "\\btf1\\b", "fr.tf1.mytf1|fr.tf1.mytf1.tv"},
+        {"France 2", "france\\.?\\s?tv", "fr.francetv.pluzz|fr.francetv.androidtv"},
+        {"M6", "\\bm6\\b", "fr.m6.m6replay.by|fr.m6.m6replay|fr.m6.m6replay.tv"},
+        {"W9", "\\bm6\\b", "fr.m6.m6replay.by|fr.m6.m6replay|fr.m6.m6replay.tv"},
+        {"Arte", "\\barte\\b", "tv.arte.plus7|tv.arte.plus7.tv"},
+    };
+    private static final long TV_EVERY = 3 * 3600_000L;
+    private volatile List<Pick> tv = new ArrayList<>();
+    private volatile String tvDate = "";
+    private volatile long tvAt, tvEnd;
+    private volatile boolean tvFetching, tvLoaded;
+    private volatile java.util.Set<String> channelPkgs = new java.util.HashSet<>();
+
+    static boolean tvConfigured() {
+        return !Config.TV_GUIDE.trim().isEmpty();
+    }
+
+    /**
+     * Tonight's programmes on the channels, from 5 pm until the last one ends, when "Tonight on TV" is on; else null.
+     * Six programmes: the home screen shows them three at a time.
+     */
+    List<Pick> tonightOnTv() {
+        if (!tvConfigured() || !Prefs.pickApp(TV) || tv.isEmpty() || !tvDate.equals(day(0))) return null;
+        long now = System.currentTimeMillis();
+        Calendar cal = Calendar.getInstance();
+        if (cal.get(Calendar.HOUR_OF_DAY) < 17 || now >= tvEnd) return null;
+        return tv;
+    }
+
+    /** A channel's app (TF1+, M6+, france.tv, ARTE): focused on the shelf, "Tonight" shows the TV's evening. */
+    boolean isChannelApp(String pkg) {
+        return pkg != null && channelPkgs.contains(pkg);
+    }
+
+    /** The small file the "Tonight on TV" workflow writes, every 3 hours at most, in the background. */
+    private void refreshTv() {
+        if (!tvConfigured() || tvFetching) return;
+        long now = System.currentTimeMillis(), since = now - tvAt;
+        // Today's file: again every 3 hours. Yesterday's or none: again 10 minutes after a failed try.
+        if (tvLoaded && since >= 0 && since < (tvDate.equals(day(0)) ? TV_EVERY : 10 * 60_000L)) return;
+        tvFetching = true;
+        io.execute(() -> {
+            try {
+                if (!tvLoaded) {
+                    tvLoaded = true;
+                    loadTv(cache.getString("tv", null));   // the last file, at once (the apps' lookup is off the UI thread)
+                    tvAt = cache.getLong("tvAt", 0);
+                    long age = System.currentTimeMillis() - tvAt;
+                    if (tvDate.equals(day(0)) && age >= 0 && age < TV_EVERY) return;
+                }
+                String url = "https://raw.githubusercontent.com/" + Config.TV_GUIDE.trim() + "/tv/tonight.json";
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(8000);
+                String body;
+                try {
+                    if (c.getResponseCode() != 200) throw new IOException("HTTP " + c.getResponseCode());
+                    body = read(c.getInputStream());
+                } finally {
+                    c.disconnect();
+                }
+                loadTv(body);
+                tvAt = System.currentTimeMillis();
+                cache.edit().putString("tv", body).putLong("tvAt", tvAt).apply();
+                for (Pick p : tv) {
+                    try {
+                        if (p.backdrop != null) download(p);
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                tvAt = System.currentTimeMillis();
+                AppLog.w("tonight on TV: " + e.getMessage());
+            } finally {
+                tvFetching = false;
+                notifyListeners();
+            }
+        });
+    }
+
+    private void loadTv(String json) {
+        if (json == null) return;
+        try {
+            JSONObject o = new JSONObject(json);
+            JSONArray items = o.getJSONArray("items");
+            Map<String, String> apps = channelApps();
+            java.util.Set<String> pkgs = new java.util.HashSet<>(apps.values());
+            List<Pick> list = new ArrayList<>();
+            long end = 0;
+            java.text.DateFormat hm = android.text.format.DateFormat.getTimeFormat(context);
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject it = items.getJSONObject(i);
+                Pick p = new Pick();
+                p.id = it.optInt("tmdb");
+                p.kind = it.optString("kind", "tv");
+                p.title = it.optString("title");
+                String b = it.optString("backdrop", "");
+                p.backdrop = b.isEmpty() ? null : b;
+                String ch = it.optString("ch");
+                StringBuilder meta = new StringBuilder(ch).append(" · ").append(hm.format(new java.util.Date(it.optLong("start"))));
+                String cat = it.optString("cat", "");
+                if (!cat.isEmpty()) meta.append(" · ").append(cat);
+                p.meta = meta.toString();
+                p.app = TV;
+                p.pkg = apps.get(ch);
+                p.detailed = true;
+                end = Math.max(end, it.optLong("stop"));
+                list.add(p);
+            }
+            tv = list;
+            tvDate = o.optString("date");
+            tvEnd = end;
+            channelPkgs = pkgs;
+        } catch (Exception e) {
+            AppLog.w("tonight on TV: " + e.getMessage());
+        }
+    }
+
+    /** Each channel's app on this TV: a known package first, else an app whose name says it (TF1+, M6+, france.tv). */
+    private Map<String, String> channelApps() {
+        Map<String, String> out = new HashMap<>();
+        android.content.pm.PackageManager pm = context.getPackageManager();
+        List<android.content.pm.ResolveInfo> all = new ArrayList<>();
+        for (String category : new String[] {"android.intent.category.LEANBACK_LAUNCHER", android.content.Intent.CATEGORY_LAUNCHER}) {
+            try {
+                all.addAll(pm.queryIntentActivities(new android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(category), 0));
+            } catch (RuntimeException ignored) {
+            }
+        }
+        for (String[] ch : CHANNEL_APPS) {
+            String found = null;
+            for (String pkg : ch[2].split("\\|")) if (installed(pkg)) { found = pkg; break; }
+            if (found == null) {
+                java.util.regex.Pattern words = java.util.regex.Pattern.compile(ch[1]);
+                for (android.content.pm.ResolveInfo r : all) {
+                    CharSequence label = r.loadLabel(pm);
+                    if (label != null && words.matcher(label.toString().toLowerCase(Locale.ROOT)).find()) {
+                        found = r.activityInfo.packageName;
+                        break;
+                    }
+                }
+            }
+            if (found != null) out.put(ch[0], found);
+        }
+        return out;
     }
 
     // MARK: - Trailers

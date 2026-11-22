@@ -1,0 +1,42 @@
+# Tonight on French TV: twice a day, the evening's programmes of TF1, France 2, M6, Arte, TMC and W9 in a small file
+# (tonight.json on the "tv" branch) that the TVs read for "Tonight" (Recs.tonightOnTv). tools/tv_tonight.py does it.
+name: Tonight on TV
+
+on:
+  schedule:
+    - cron: "17 5 * * *"    # early morning (Paris), then again in the afternoon in case the guide changed
+    - cron: "17 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tv-tonight
+  cancel-in-progress: true
+
+jobs:
+  tonight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tonight's programmes
+        env:
+          TMDB_KEY: ${{ secrets.TMDB_KEY }}
+        run: python3 tools/tv_tonight.py out/tv/tonight.json
+
+      - name: Publish on the tv branch (one commit, replaced each time)
+        run: |
+          cd out/tv
+          git init -q -b tv
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tonight.json
+          git commit -q -m "Tonight on TV, $(date -u +%F)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" tv

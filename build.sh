@@ -57,6 +57,7 @@ final class Config {
     static final String TUYA_IP = "$(prop tuya_ip '')";
     static final String TUYA_VERSION = "$(prop tuya_version '')";
     static final String UPDATES = "$(prop updates '')";
+    static final String TV_GUIDE = "$(prop tv_guide '')";
     static final int BUILD = ${BUILD_NUMBER:-1};
     static final String TMDB_REGION = "$(prop tmdb_region US)";
     static final String LATITUDE = "$LAT";
