@@ -609,6 +609,7 @@ final class HomeView extends ViewGroup implements Choreographer.FrameCallback, H
         sky.layout(0, 0, width, height);
         weatherLayer.layout(0, 0, width, height);
         place(heroLayer, 0, 0);
+        fgLayer.layout(0, 0, width, height);
         place(status, width - status.getMeasuredWidth(), 0);
         place(platter, 0, Math.round(750 * kk));
         place(tiles, 0, Math.round(790 * kk));
