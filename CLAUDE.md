@@ -154,7 +154,9 @@ HDMI (Chromecast with Google TV, Google TV Streamer, onn 4K, NVIDIA Shield). Set
 
 ## The code
 
-- Java 8 language level, minSdk 28 (Android 9), targetSdk 33. No Gradle, no libraries: only the Android SDK.
+- Java 8 language level, minSdk 25 (Android 7.1: Fire OS 6 sticks), targetSdk 33. What came with Android 8 and 9
+  (adaptive icons, GPU bitmaps, variable fonts, the process name, the lock-screen action) is behind a version check or
+  in a nested class (`HomeApps.Adaptive`); compile against `platforms/android-25/android.jar` to see what else would need it. No Gradle, no libraries: only the Android SDK.
   Android 9 has no RenderNode (`Recording` wraps it, with a Picture there) and no `cmd role`. On Android 9 to 11
   (`Ui.LEGACY`) the home screen skips the GPU layers, draws blurred shadows from cached bitmaps (`Shadows`) and
   rounds images with a shader instead of clipPath: their GPUs (a Mi Box 3's Mali-450) choked on those.

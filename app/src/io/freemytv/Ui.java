@@ -61,7 +61,7 @@ final class Ui {
 
     /** Inter at an optical size (14 = text, 32 = display) and weight; the system font if the file is missing. */
     private static Typeface font(AssetManager a, int opticalSize, int weight) {
-        if (has(a, FONT)) {
+        if (has(a, FONT) && Build.VERSION.SDK_INT >= 26) {
             try {
                 Typeface t = new Typeface.Builder(a, FONT)
                         .setFontVariationSettings("'opsz' " + opticalSize + ", 'wght' " + weight).build();
@@ -69,7 +69,16 @@ final class Ui {
             } catch (RuntimeException ignored) {
             }
         }
-        return Typeface.create(Typeface.DEFAULT, weight, false);
+        if (Build.VERSION.SDK_INT >= 28) return Typeface.create(Typeface.DEFAULT, weight, false);
+        // Android 7 (Fire OS 6): no variable fonts nor weights, the file's default (or the system's) in bold or not
+        Typeface base = Typeface.DEFAULT;
+        if (has(a, FONT)) {
+            try {
+                base = Typeface.createFromAsset(a, FONT);
+            } catch (RuntimeException ignored) {
+            }
+        }
+        return Typeface.create(base, weight >= 600 ? Typeface.BOLD : Typeface.NORMAL);
     }
 
     private static final String FONT = "fonts/InterVariable.ttf";

@@ -53,7 +53,8 @@ public class FireHomeService extends AccessibilityService {
      */
     static boolean sleepNow() {
         FireHomeService s = running;
-        return s != null && s.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
+        // The action came with Android 9: Fire OS 6 (Android 7) can't put the stick to sleep this way.
+        return s != null && android.os.Build.VERSION.SDK_INT >= 28 && s.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN);
     }
 
     @Override public void onDestroy() {

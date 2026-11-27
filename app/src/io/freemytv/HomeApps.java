@@ -19,7 +19,6 @@ import android.graphics.Path;
 import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
-import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.Drawable;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
@@ -789,15 +788,15 @@ final class HomeApps {
         if (icon == null) return b;
         int size = Math.round(TILE_H * 0.56f);
         float left = (TILE_W - size) / 2f, top = (TILE_H - size) / 2f;
-        if (icon instanceof AdaptiveIconDrawable) {
+        Drawable[] layers = android.os.Build.VERSION.SDK_INT >= 26 ? Adaptive.layers(icon) : null;   // none before Android 8
+        if (layers != null) {
             // Adaptive icon: the layers clipped to a squircle, like an Apple icon.
-            AdaptiveIconDrawable a = (AdaptiveIconDrawable) icon;
             Path clip = new Path();
             clip.addRoundRect(new RectF(left, top, left + size, top + size), size * 0.2237f, size * 0.2237f, Path.Direction.CW);
             canvas.save();
             canvas.clipPath(clip);
             int pad = size / 4;
-            for (Drawable layer : new Drawable[] {a.getBackground(), a.getForeground()}) {
+            for (Drawable layer : layers) {
                 if (layer == null) continue;
                 layer.setBounds(Math.round(left) - pad, Math.round(top) - pad, Math.round(left) + size + pad, Math.round(top) + size + pad);
                 layer.draw(canvas);
@@ -810,6 +809,15 @@ final class HomeApps {
             icon.draw(canvas);
         }
         return b;
+    }
+
+    /** Only this class touches AdaptiveIconDrawable (Android 8+), so HomeApps still loads on Android 7 (Fire OS 6). */
+    private static final class Adaptive {
+        static Drawable[] layers(Drawable icon) {
+            if (!(icon instanceof android.graphics.drawable.AdaptiveIconDrawable)) return null;
+            android.graphics.drawable.AdaptiveIconDrawable a = (android.graphics.drawable.AdaptiveIconDrawable) icon;
+            return new Drawable[] {a.getBackground(), a.getForeground()};
+        }
     }
 
     /** Settings and the like: the icon in white on a dark card. */
